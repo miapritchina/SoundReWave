@@ -21,9 +21,9 @@ together and export the mix and the artwork.
 |---|---|
 | 0 — Scaffold (Vite/TS/Tailwind, tests) | ✅ |
 | 1 — Live pitch draw + note readout + layering + A3 target | ✅ |
-| 2 — Per-loop audio recording (MediaRecorder) | ⬜ |
-| 3 — Overlapped play-all + A3 tone | ⬜ |
-| 4 — Export (SVG / PNG / WAV) | ⬜ |
+| 2 — Per-loop audio recording (MediaRecorder) | ✅ |
+| 3 — Overlapped play-all + A3 tone | ✅ |
+| 4 — Export (SVG / PNG / overlapped + sequential WAV) | ✅ |
 | 5 — Mobile polish (iOS Safari), GitHub Pages deploy | ⬜ |
 
 ## Develop
