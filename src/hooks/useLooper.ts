@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PitchDetector } from 'pitchy';
 import type { Loop, PitchPoint } from '../lib/contour';
 import { centsOff, freqToName } from '../lib/pitch';
@@ -48,6 +48,18 @@ export function useLooper(options: UseLooperOptions = {}) {
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const onHitRef = useRef(onHit);
   onHitRef.current = onHit;
+
+  // iOS Safari suspends the AudioContext when the tab is backgrounded; resume it
+  // when the app becomes visible again so recording/playback keep working.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && ctxRef.current?.state === 'suspended') {
+        void ctxRef.current.resume();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   // --- audio analysis loop ---
   const beginAnalysis = useCallback(

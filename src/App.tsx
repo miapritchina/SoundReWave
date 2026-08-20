@@ -91,7 +91,13 @@ export default function App() {
           {status === 'requesting' ? 'Starting…' : 'Start'}
         </button>
       ) : recording ? (
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-2">
+          {committed.length >= 8 && (
+            <p className="text-center text-[11px] text-amber-300/80">
+              {committed.length} layers — lots of audio in memory. Consider finishing soon.
+            </p>
+          )}
+          <div className="flex gap-3">
           <button
             onClick={() => void looper.newLayer()}
             className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
@@ -104,6 +110,7 @@ export default function App() {
           >
             Finish
           </button>
+          </div>
         </div>
       ) : (
         // finished

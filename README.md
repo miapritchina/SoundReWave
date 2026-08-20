@@ -24,7 +24,7 @@ together and export the mix and the artwork.
 | 2 — Per-loop audio recording (MediaRecorder) | ✅ |
 | 3 — Overlapped play-all + A3 tone | ✅ |
 | 4 — Export (SVG / PNG / overlapped + sequential WAV) | ✅ |
-| 5 — Mobile polish (iOS Safari), GitHub Pages deploy | ⬜ |
+| 5 — Mobile polish (iOS Safari), CI + GitHub Pages deploy | ✅ |
 
 ## Develop
 
@@ -38,3 +38,10 @@ npm run build        # production build
 
 > The mic needs **HTTPS** (or `localhost`). On iOS Safari, audio only starts inside a
 > user gesture — the **Start** button.
+
+## Deploy
+
+`.github/workflows/deploy.yml` builds and publishes to **GitHub Pages** on every push to
+`main`. Enable it once in the repo: **Settings → Pages → Build and deployment → Source:
+GitHub Actions**. The Vite `base` defaults to `/SoundReWave/` in production (override with
+`VITE_BASE`). CI (`ci.yml`) runs typecheck, unit tests, build, and Playwright E2E.
