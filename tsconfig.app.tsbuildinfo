@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/NoteReadout.tsx","./src/components/PitchGraph.tsx","./src/hooks/useElementSize.ts","./src/hooks/useMicPitch.ts","./src/lib/contour.test.ts","./src/lib/contour.ts","./src/lib/palette.ts","./src/lib/pitch.test.ts","./src/lib/pitch.ts","./src/lib/scales.ts","./src/test/setup.ts"],"version":"5.9.3"}

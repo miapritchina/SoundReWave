@@ -33,7 +33,9 @@ It is part vocal looper, part Praat-style intonation visualizer, part generative
 | Export | **WAV/MP3** (overlapped mix + one long sequential track), **SVG** (preferred) + **PNG** of graph |
 | Persistence | **Ephemeral / in-memory** for v1 — export is the durability story |
 | Platform | **Mobile-essential**, responsive, iOS Safari–aware |
-| Stack | React + TypeScript + Tailwind + Vite; Tone.js, pitchy, tonal; Storybook + Playwright + Vitest |
+| Rendering | **visx** (D3-backed, renders **SVG**) — declarative React, not raw canvas; native SVG export. Escalation path: react-konva if perf demands. |
+| Stack | React + TypeScript + Tailwind + Vite; **visx** + pitchy + tonal; raw Web Audio (no Tone.js); Storybook + Playwright + Vitest |
+| Deploy | GitHub Pages (client-only, HTTPS for the mic) |
 
 ### Assumed defaults (redirect if wrong)
 1. **Y axis:** log-frequency, labeled with note names over a vocal range (~E2–C6), fixed
@@ -84,14 +86,16 @@ type Loop = { id: string; index: number; color: string; audioBuffer: AudioBuffer
 type Session = { loops: Loop[]; sampleRate: number };
 ```
 
-### 4.4 Rendering
-- **Live:** Canvas 2D under `requestAnimationFrame`. Committed layers painted once (dimmed);
-  the active line updates each frame. `freq → y` via log scale over `[fMin, fMax]`;
-  `tMs → x` via elapsed time within the window. Gap-bridging interpolates across short
-  unvoiced spans, lifts the pen beyond the threshold.
-- **Export is vector-first:** the per-loop `points` arrays are the source of truth. We
-  serialize one `<path>` per layer into an **SVG** string (crisp, preferred), and rasterize
-  that SVG to **PNG** via an offscreen canvas. Canvas stays purely for live performance.
+### 4.4 Rendering (visx / SVG)
+- **Live:** declarative **visx** components render SVG. `@visx/scale` `scaleLog` maps
+  `freq → y` over `[fMin, fMax]`; `scaleLinear` maps `tMs → x`; `@visx/shape` `LinePath`
+  with `curveCatmullRom` draws each segment. Committed layers are memoized (static, dimmed)
+  so only the active take's path re-renders per frame. Detection is throttled to ~30fps.
+- **Gap-bridging** happens in `toSegments()` (see `src/lib/contour.ts`): voiced runs become
+  polylines; unvoiced gaps ≤ `maxBridgeMs` stay connected, longer ones lift the pen.
+- **Export is vector-native:** because the live surface *is* SVG, the per-loop `points`
+  arrays serialize straight to an **SVG** file (preferred), and **PNG** is a raster of that
+  same SVG. No separate canvas draw path to maintain.
 
 ### 4.5 Audio export
 - **Overlapped mix:** `OfflineAudioContext`, duration = longest loop; schedule every buffer
