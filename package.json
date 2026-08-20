@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "e2e": "playwright test"
+    "e2e:fixture": "node e2e/make-fixture.mjs",
+    "e2e": "node e2e/make-fixture.mjs && playwright test"
   },
   "dependencies": {
     "@visx/axis": "^3.12.0",
@@ -28,6 +29,10 @@
     "tonal": "^6.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/react": "^8.6.18",
+    "@storybook/react-vite": "^8.6.18",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.20.1",
@@ -38,6 +43,7 @@
     "eslint": "^9.17.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
+    "storybook": "^8.6.18",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",

@@ -8,3 +8,7 @@ storybook-static
 playwright-report
 test-results
 .vite
+
+*.tsbuildinfo
+
+e2e/fixtures/
