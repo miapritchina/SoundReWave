@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { PitchGraph } from './components/PitchGraph';
 import { NoteReadout } from './components/NoteReadout';
 import { ExportPanel } from './components/ExportPanel';
+import { SensitivityControl } from './components/SensitivityControl';
 import { useLooper } from './hooks/useLooper';
 import { useElementSize } from './hooks/useElementSize';
 import { A3_MIDI, isNoteHit } from './lib/pitch';
@@ -92,6 +93,11 @@ export default function App() {
         </button>
       ) : recording ? (
         <div className="flex flex-col gap-2">
+          <SensitivityControl
+            value={looper.sensitivity}
+            onChange={looper.setSensitivity}
+            level={looper.inputLevel}
+          />
           {committed.length >= 8 && (
             <p className="text-center text-[11px] text-amber-300/80">
               {committed.length} layers — lots of audio in memory. Consider finishing soon.
