@@ -8,9 +8,10 @@ import type { LiveFrame } from './useMicPitch';
 export type LooperStatus = 'idle' | 'requesting' | 'recording' | 'finished' | 'denied' | 'error';
 
 export interface UseLooperOptions {
-  clarityThreshold?: number;
-  rmsThreshold?: number;
+  /** Sampling interval in ms (~30fps default). */
   frameIntervalMs?: number;
+  /** Initial detection sensitivity 0..1 (see gatesFor). Live-adjustable. */
+  sensitivity?: number;
   onHit?: (freq: number) => void;
 }
 
@@ -27,11 +28,24 @@ function pickMime(): string | undefined {
  * analysis (drawn contour) and per-take audio recording (MediaRecorder). Takes
  * are committed as layers with both their contour points and decoded audio.
  */
+/**
+ * Map a 0..1 sensitivity to detection gates + input gain. Higher sensitivity
+ * loosens the clarity and amplitude gates and boosts the analyser gain, so
+ * quieter/more distant or reverberant voice still registers. Real spoken words
+ * often score clarity ~0.7–0.85 on vowels, so the default sits comfortably
+ * below the strict end.
+ */
+export function gatesFor(sensitivity: number): { clarity: number; rms: number; gain: number } {
+  const s = Math.max(0, Math.min(1, sensitivity));
+  return {
+    clarity: 0.92 - s * 0.34, // 0.92 (strict) → 0.58 (loose)
+    rms: 0.02 * Math.pow(0.0005 / 0.02, s), // 0.02 → 0.0005, log-spaced
+    gain: 1 + s * 4, // 1× → 5×
+  };
+}
+
 export function useLooper(options: UseLooperOptions = {}) {
-  // Thresholds tuned for normal speaking/singing distance: rely on pitchy's
-  // clarity score to reject noise, and keep the amplitude gate low so distant
-  // voice still registers (autoGainControl below normalizes the level).
-  const { clarityThreshold = 0.9, rmsThreshold = 0.005, frameIntervalMs = 33, onHit } = options;
+  const { frameIntervalMs = 33, sensitivity: initialSensitivity = 0.65, onHit } = options;
 
   const [status, setStatus] = useState<LooperStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +53,9 @@ export function useLooper(options: UseLooperOptions = {}) {
   const [activePoints, setActivePoints] = useState<PitchPoint[]>([]);
   const [live, setLive] = useState<LiveFrame | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  /** Live input loudness 0..1 (post-gain RMS, scaled) for the meter. */
+  const [inputLevel, setInputLevel] = useState(0);
+  const [sensitivity, setSensitivityState] = useState(initialSensitivity);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -49,8 +66,16 @@ export function useLooper(options: UseLooperOptions = {}) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  const inputGainRef = useRef<GainNode | null>(null);
+  const sensitivityRef = useRef(initialSensitivity);
   const onHitRef = useRef(onHit);
   onHitRef.current = onHit;
+
+  const setSensitivity = useCallback((v: number) => {
+    sensitivityRef.current = v;
+    setSensitivityState(v);
+    if (inputGainRef.current) inputGainRef.current.gain.value = gatesFor(v).gain;
+  }, []);
 
   // iOS Safari suspends the AudioContext when the tab is backgrounded; resume it
   // when the app becomes visible again so recording/playback keep working.
@@ -86,7 +111,11 @@ export function useLooper(options: UseLooperOptions = {}) {
         const rms = Math.sqrt(sumSq / input.length);
         const [freq, clarity] = detector.findPitch(input, ctx.sampleRate);
         const tMs = now - startTsRef.current;
-        const voiced = clarity >= clarityThreshold && rms >= rmsThreshold && freq > 0;
+
+        const gates = gatesFor(sensitivityRef.current);
+        // Meter: scale post-gain RMS to a readable 0..1 (voice sits ~0.05–0.3).
+        setInputLevel(Math.min(1, rms * 4));
+        const voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
 
         if (voiced) {
           setLive({ freq, clarity, note: freqToName(freq), cents: centsOff(freq) });
@@ -103,7 +132,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       };
       rafRef.current = requestAnimationFrame(tick);
     },
-    [clarityThreshold, rmsThreshold, frameIntervalMs],
+    [frameIntervalMs],
   );
 
   // --- recording ---
@@ -180,7 +209,8 @@ export function useLooper(options: UseLooperOptions = {}) {
       // only the analyser — the MediaRecorder reads the raw stream, so recorded
       // audio is unaffected.
       const inputGain = ctx.createGain();
-      inputGain.gain.value = 1.6;
+      inputGain.gain.value = gatesFor(sensitivityRef.current).gain;
+      inputGainRef.current = inputGain;
       source.connect(inputGain).connect(analyser);
 
       setCommitted([]);
@@ -214,7 +244,9 @@ export function useLooper(options: UseLooperOptions = {}) {
     await commitTake();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    inputGainRef.current = null;
     setLive(null);
+    setInputLevel(0);
     setActivePoints([]);
     setStatus('finished');
   }, [commitTake]);
@@ -279,9 +311,11 @@ export function useLooper(options: UseLooperOptions = {}) {
     void ctxRef.current?.close();
     ctxRef.current = null;
     pointsRef.current = [];
+    inputGainRef.current = null;
     setCommitted([]);
     setActivePoints([]);
     setLive(null);
+    setInputLevel(0);
     setStatus('idle');
   }, [stopPlayback]);
 
@@ -292,6 +326,9 @@ export function useLooper(options: UseLooperOptions = {}) {
     activePoints,
     live,
     isPlaying,
+    inputLevel,
+    sensitivity,
+    setSensitivity,
     start,
     newLayer,
     finish,
