@@ -44,8 +44,8 @@ export interface UseMicPitch {
  */
 export function useMicPitch(options: UseMicPitchOptions = {}): UseMicPitch {
   const {
-    clarityThreshold = 0.88,
-    rmsThreshold = 0.012,
+    clarityThreshold = 0.9,
+    rmsThreshold = 0.005,
     frameIntervalMs = 33,
     onHit,
   } = options;
@@ -87,7 +87,7 @@ export function useMicPitch(options: UseMicPitchOptions = {}): UseMicPitch {
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false,
+          autoGainControl: true,
         },
       });
       streamRef.current = stream;

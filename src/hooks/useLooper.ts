@@ -28,7 +28,10 @@ function pickMime(): string | undefined {
  * are committed as layers with both their contour points and decoded audio.
  */
 export function useLooper(options: UseLooperOptions = {}) {
-  const { clarityThreshold = 0.88, rmsThreshold = 0.012, frameIntervalMs = 33, onHit } = options;
+  // Thresholds tuned for normal speaking/singing distance: rely on pitchy's
+  // clarity score to reject noise, and keep the amplitude gate low so distant
+  // voice still registers (autoGainControl below normalizes the level).
+  const { clarityThreshold = 0.9, rmsThreshold = 0.005, frameIntervalMs = 33, onHit } = options;
 
   const [status, setStatus] = useState<LooperStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +162,9 @@ export function useLooper(options: UseLooperOptions = {}) {
     setStatus('requesting');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        // autoGainControl normalizes distance so you don't have to be on top of
+        // the mic; EC/NS stay off to keep the pitch (and recorded audio) faithful.
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
       });
       streamRef.current = stream;
       const AudioCtx =
@@ -171,7 +176,12 @@ export function useLooper(options: UseLooperOptions = {}) {
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
-      source.connect(analyser);
+      // Extra headroom for detection on devices with weak AGC. This gain feeds
+      // only the analyser — the MediaRecorder reads the raw stream, so recorded
+      // audio is unaffected.
+      const inputGain = ctx.createGain();
+      inputGain.gain.value = 1.6;
+      source.connect(inputGain).connect(analyser);
 
       setCommitted([]);
       beginAnalysis(ctx, analyser);
