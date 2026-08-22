@@ -15,6 +15,20 @@ export interface UseLooperOptions {
   onHit?: (freq: number) => void;
 }
 
+/**
+ * iOS 16.4+ audio session hint. "playback" makes Web Audio ignore the hardware
+ * mute switch; "play-and-record" is appropriate while the mic is live. No-op
+ * (and harmless) where unsupported.
+ */
+function setAudioSession(type: 'playback' | 'play-and-record'): void {
+  try {
+    const nav = navigator as unknown as { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = type;
+  } catch {
+    /* unsupported browser */
+  }
+}
+
 function pickMime(): string | undefined {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
   for (const c of candidates) {
@@ -200,6 +214,7 @@ export function useLooper(options: UseLooperOptions = {}) {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioCtx();
+      setAudioSession('play-and-record');
       await ctx.resume();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -251,12 +266,19 @@ export function useLooper(options: UseLooperOptions = {}) {
     setStatus('finished');
   }, [commitTake]);
 
-  const playAll = useCallback(() => {
+  const playAll = useCallback(async () => {
     const ctx = ctxRef.current;
     if (!ctx) return;
-    void ctx.resume();
+    // iOS: route to the "playback" session so the hardware mute switch doesn't
+    // silence Web Audio, and wait for the context to actually resume before
+    // scheduling sources (a suspended context plays nothing).
+    setAudioSession('playback');
+    await ctx.resume();
     const withAudio = committed.filter((l) => l.audio);
-    if (!withAudio.length) return;
+    if (!withAudio.length) {
+      setError('No recorded audio to play back — the take may not have captured. Try recording again.');
+      return;
+    }
     const gain = ctx.createGain();
     gain.gain.value = withAudio.length > 1 ? 1 / Math.sqrt(withAudio.length) : 1;
     gain.connect(ctx.destination);
