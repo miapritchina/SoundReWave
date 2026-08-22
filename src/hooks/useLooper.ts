@@ -77,6 +77,7 @@ export function useLooper(options: UseLooperOptions = {}) {
   const startTsRef = useRef(0);
   const lastSampleRef = useRef(0);
   const pointsRef = useRef<PitchPoint[]>([]);
+  const lastVoicedRef = useRef<{ freq: number; tMs: number } | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -111,6 +112,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       startTsRef.current = performance.now();
       lastSampleRef.current = 0;
       pointsRef.current = [];
+      lastVoicedRef.current = null;
       setActivePoints([]);
 
       const tick = () => {
@@ -129,12 +131,29 @@ export function useLooper(options: UseLooperOptions = {}) {
         const gates = gatesFor(sensitivityRef.current);
         // Meter: scale post-gain RMS to a readable 0..1 (voice sits ~0.05–0.3).
         setInputLevel(Math.min(1, rms * 4));
-        const voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+        let voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+
+        // Pitch-continuity guard: kill the downward plunges at phrase edges.
+        // Autocorrelation often reports a sub-harmonic (~an octave too low), and
+        // noise during pauses slips through as a garbage low pitch. Correct clear
+        // octave-halving errors relative to the recent pitch, and drop any
+        // remaining implausible downward leap to a clean pen-up (gap) instead of
+        // drawing a line to the floor.
+        let f = freq;
+        if (voiced) {
+          const prev = lastVoicedRef.current;
+          if (prev && tMs - prev.tMs < 250) {
+            if (f > prev.freq * 0.4 && f < prev.freq * 0.6) f *= 2; // ~octave low
+            else if (f > prev.freq * 0.2 && f < prev.freq * 0.3) f *= 4; // ~2 octaves low
+            if (12 * Math.log2(prev.freq / f) > 10) voiced = false; // implausible drop
+          }
+        }
 
         if (voiced) {
-          setLive({ freq, clarity, note: freqToName(freq), cents: centsOff(freq) });
-          onHitRef.current?.(freq);
-          pointsRef.current = [...pointsRef.current, { tMs, freq, clarity }];
+          lastVoicedRef.current = { freq: f, tMs };
+          setLive({ freq: f, clarity, note: freqToName(f), cents: centsOff(f) });
+          onHitRef.current?.(f);
+          pointsRef.current = [...pointsRef.current, { tMs, freq: f, clarity }];
         } else {
           setLive(null);
           const last = pointsRef.current[pointsRef.current.length - 1];
@@ -248,6 +267,7 @@ export function useLooper(options: UseLooperOptions = {}) {
     await commitTake();
     // reset the active take and start recording the next one
     pointsRef.current = [];
+    lastVoicedRef.current = null;
     setActivePoints([]);
     startTsRef.current = performance.now();
     startRecorder();
