@@ -7,6 +7,7 @@ import {
   saveSettings,
   loadUserPresets,
   saveUserPresets,
+  visualSubset,
 } from '../lib/settings';
 
 /** Visual settings + preset management, persisted per-viewer in localStorage. */
@@ -26,7 +27,8 @@ export function useSettings() {
   const applyPreset = useCallback(
     (name: string) => {
       const p = presets.find((x) => x.name === name);
-      if (p) setSettings({ ...p.settings });
+      // Merge visual overrides, preserving loop mode / other settings.
+      if (p) setSettings((s) => ({ ...s, ...p.settings }));
     },
     [presets],
   );
@@ -36,7 +38,10 @@ export function useSettings() {
       const trimmed = name.trim();
       if (!trimmed) return;
       setUserPresets((prev) => {
-        const next = [...prev.filter((p) => p.name !== trimmed), { name: trimmed, settings }];
+        const next = [
+          ...prev.filter((p) => p.name !== trimmed),
+          { name: trimmed, settings: visualSubset(settings) },
+        ];
         saveUserPresets(next);
         return next;
       });

@@ -86,6 +86,31 @@ export function SettingsPanel({
         ]}
         onChange={(v) => onChange({ windowSec: v })}
       />
+      <div className="border-t border-white/10 pt-2">
+        <Segmented
+          label="Loop"
+          value={settings.loopMode}
+          options={[
+            { value: 'manual', label: 'Manual' },
+            { value: 'fixed', label: 'Fixed' },
+          ]}
+          onChange={(v) => onChange({ loopMode: v })}
+        />
+      </div>
+      {settings.loopMode === 'fixed' && (
+        <Segmented
+          label="Length"
+          value={settings.loopLengthSec}
+          options={[
+            { value: 4, label: '4s' },
+            { value: 6, label: '6s' },
+            { value: 8, label: '8s' },
+            { value: 12, label: '12s' },
+          ]}
+          onChange={(v) => onChange({ loopLengthSec: v })}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-white/55">Playhead</span>
         <button
