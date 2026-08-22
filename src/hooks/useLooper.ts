@@ -15,6 +15,10 @@ export interface UseLooperOptions {
   sensitivity?: number;
   /** Auto-finish after this much continuous silence, once any voice was heard. */
   silenceStopMs?: number;
+  /** 'manual' (New Layer continues) or 'fixed' (auto-stop after loopLengthMs). */
+  loopMode?: 'manual' | 'fixed';
+  /** Fixed-loop length in ms. */
+  loopLengthMs?: number;
   onHit?: (freq: number) => void;
 }
 
@@ -66,6 +70,8 @@ export function useLooper(options: UseLooperOptions = {}) {
     frameIntervalMs = 33,
     sensitivity: initialSensitivity = 0.65,
     silenceStopMs = 4000,
+    loopMode = 'manual',
+    loopLengthMs = 6000,
     onHit,
   } = options;
 
@@ -76,6 +82,8 @@ export function useLooper(options: UseLooperOptions = {}) {
   const [live, setLive] = useState<LiveFrame | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
+  /** Fixed mode: a take has auto-stopped and we're waiting for New Layer. */
+  const [armed, setArmed] = useState(false);
   /** Playback position in ms while playing all layers, else null. */
   const [playbackMs, setPlaybackMs] = useState<number | null>(null);
   /** Live input loudness 0..1 (post-gain RMS, scaled) for the meter. */
@@ -96,6 +104,15 @@ export function useLooper(options: UseLooperOptions = {}) {
   const pausedRef = useRef(false);
   const pauseStartRef = useRef(0);
   const playRafRef = useRef<number | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const loopModeRef = useRef(loopMode);
+  const loopLengthMsRef = useRef(loopLengthMs);
+  const armedRef = useRef(false);
+  const armingRef = useRef(false);
+  const armRef = useRef<() => void>(() => {});
+  const resumeRef = useRef<() => void>(() => {});
+  loopModeRef.current = loopMode;
+  loopLengthMsRef.current = loopLengthMs;
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -133,6 +150,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       lastVoicedRef.current = null;
       hadVoiceRef.current = false;
       autoStoppingRef.current = false;
+      armingRef.current = false;
       pausedRef.current = false;
       setActivePoints([]);
       setPaused(false);
@@ -189,8 +207,18 @@ export function useLooper(options: UseLooperOptions = {}) {
         }
         setActivePoints(pointsRef.current);
 
-        // Auto-finish once we've heard voice and then gone quiet for a while.
+        // Fixed mode: auto-stop the take at the loop length and arm for the next.
+        if (loopModeRef.current === 'fixed' && !armingRef.current && tMs >= loopLengthMsRef.current) {
+          armingRef.current = true;
+          if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+          armRef.current();
+          return;
+        }
+
+        // Manual mode: auto-finish after we've heard voice and gone quiet a while.
         if (
+          loopModeRef.current !== 'fixed' &&
           hadVoiceRef.current &&
           !autoStoppingRef.current &&
           now - lastVoiceWallRef.current > silenceStopMs
@@ -281,6 +309,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
+      analyserRef.current = analyser;
       // Extra headroom for detection on devices with weak AGC. This gain feeds
       // only the analyser — the MediaRecorder reads the raw stream, so recorded
       // audio is unaffected.
@@ -290,6 +319,8 @@ export function useLooper(options: UseLooperOptions = {}) {
       source.connect(inputGain).connect(analyser);
 
       setCommitted([]);
+      setArmed(false);
+      armedRef.current = false;
       beginAnalysis(ctx, analyser);
       startRecorder();
       setStatus('recording');
@@ -315,6 +346,47 @@ export function useLooper(options: UseLooperOptions = {}) {
     startRecorder();
   }, [commitTake, startRecorder]);
 
+  // Fixed mode: commit the current take and wait (armed) for the next.
+  const armCurrentTake = useCallback(async () => {
+    await commitTake();
+    pointsRef.current = [];
+    lastVoicedRef.current = null;
+    setActivePoints([]);
+    setLive(null);
+    setInputLevel(0);
+    armedRef.current = true;
+    setArmed(true);
+  }, [commitTake]);
+  armRef.current = armCurrentTake;
+
+  // Fixed mode: begin recording the next fixed-length take.
+  const recordNext = useCallback(() => {
+    const ctx = ctxRef.current;
+    const analyser = analyserRef.current;
+    if (!ctx || !analyser) return;
+    armedRef.current = false;
+    setArmed(false);
+    beginAnalysis(ctx, analyser);
+    startRecorder();
+  }, [beginAnalysis, startRecorder]);
+
+  /** Primary layer action — behaves per loop mode / armed state. */
+  const advance = useCallback(async () => {
+    // If paused, New Layer resumes recording first (no separate Resume tap).
+    if (pausedRef.current) resumeRef.current();
+    if (loopModeRef.current === 'fixed') {
+      if (armedRef.current) {
+        recordNext();
+      } else {
+        if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+        await armCurrentTake();
+      }
+    } else {
+      await newLayer();
+    }
+  }, [recordNext, armCurrentTake, newLayer]);
+
   const finish = useCallback(async () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
@@ -322,6 +394,8 @@ export function useLooper(options: UseLooperOptions = {}) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     inputGainRef.current = null;
+    armedRef.current = false;
+    setArmed(false);
     setLive(null);
     setInputLevel(0);
     setActivePoints([]);
@@ -406,6 +480,7 @@ export function useLooper(options: UseLooperOptions = {}) {
     }
     setPaused(false);
   }, []);
+  resumeRef.current = resume;
 
   /** Short A3 chime when the target note is hit (Phase 3). */
   const playHitTone = useCallback(() => {
@@ -449,6 +524,8 @@ export function useLooper(options: UseLooperOptions = {}) {
     ctxRef.current = null;
     pointsRef.current = [];
     inputGainRef.current = null;
+    armedRef.current = false;
+    setArmed(false);
     setCommitted([]);
     setActivePoints([]);
     setLive(null);
@@ -464,12 +541,14 @@ export function useLooper(options: UseLooperOptions = {}) {
     live,
     isPlaying,
     paused,
+    armed,
     playbackMs,
     inputLevel,
     sensitivity,
     setSensitivity,
     start,
     newLayer,
+    advance,
     finish,
     pause,
     resume,

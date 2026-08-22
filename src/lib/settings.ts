@@ -1,6 +1,7 @@
 /** Visual/behavior settings, persisted per-viewer in localStorage. */
 
 export type StyleMode = 'layers' | 'bloom';
+export type LoopMode = 'manual' | 'fixed';
 
 export interface VisualSettings {
   style: StyleMode;
@@ -10,6 +11,10 @@ export interface VisualSettings {
   windowSec: number;
   /** Show a vertical playhead that tracks time. */
   playhead: boolean;
+  /** 'manual' = New Layer ends/starts takes; 'fixed' = auto-stop after length. */
+  loopMode: LoopMode;
+  /** Fixed-loop length in seconds. */
+  loopLengthSec: number;
 }
 
 export const DEFAULT_SETTINGS: VisualSettings = {
@@ -17,11 +22,26 @@ export const DEFAULT_SETTINGS: VisualSettings = {
   octaves: 2,
   windowSec: 9,
   playhead: false,
+  loopMode: 'manual',
+  loopLengthSec: 6,
 };
+
+/** Visual-only keys — presets carry these; loop mode/sensitivity are separate. */
+export const VISUAL_KEYS = ['style', 'octaves', 'windowSec', 'playhead'] as const;
+
+export function visualSubset(s: VisualSettings): Partial<VisualSettings> {
+  return {
+    style: s.style,
+    octaves: s.octaves,
+    windowSec: s.windowSec,
+    playhead: s.playhead,
+  };
+}
 
 export interface Preset {
   name: string;
-  settings: VisualSettings;
+  /** Visual-only overrides applied on top of current settings. */
+  settings: Partial<VisualSettings>;
   builtin?: boolean;
 }
 

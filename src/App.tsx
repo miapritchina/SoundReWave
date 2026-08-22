@@ -35,13 +35,24 @@ export default function App() {
     }
   }, []);
 
-  const looper = useLooper({ onHit: handleHit });
+  const looper = useLooper({
+    onHit: handleHit,
+    loopMode: settings.loopMode,
+    loopLengthMs: settings.loopLengthSec * 1000,
+  });
   looperRef.current = looper;
 
   const { status, committed, activePoints } = looper;
   const recording = status === 'recording';
   const finished = status === 'finished';
+  const active = recording && !looper.armed;
   const layerIdx = committed.length;
+  const fixed = settings.loopMode === 'fixed';
+  const windowMs = (fixed ? settings.loopLengthSec : settings.windowSec) * 1000;
+
+  const lastActiveMs = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
+  const remainingSec = Math.max(0, Math.ceil((settings.loopLengthSec * 1000 - lastActiveMs) / 1000));
+  const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Layer';
 
   const range = useMemo(
     () => autoRange(committed, settings.octaves, activePoints),
@@ -93,7 +104,7 @@ export default function App() {
             activeColor={layerColor(layerIdx)}
             fMin={range.fMin}
             fMax={range.fMax}
-            windowMs={settings.windowSec * 1000}
+            windowMs={windowMs}
             style={settings.style}
             playhead={settings.playhead}
             playheadTMs={looper.isPlaying ? looper.playbackMs : undefined}
@@ -141,7 +152,17 @@ export default function App() {
         </button>
       ) : recording ? (
         <div className="flex flex-col gap-2">
-          <SensitivityControl value={looper.sensitivity} onChange={looper.setSensitivity} level={looper.inputLevel} />
+          {active && (
+            <SensitivityControl value={looper.sensitivity} onChange={looper.setSensitivity} level={looper.inputLevel} />
+          )}
+          {fixed && active && (
+            <p className="text-center font-mono text-[11px] text-white/50">{remainingSec}s left in loop</p>
+          )}
+          {looper.armed && (
+            <p className="text-center text-[11px] text-white/55">
+              Take saved — <span className="text-accent">New Layer</span> to record the next {settings.loopLengthSec}s loop.
+            </p>
+          )}
           {totalRecordedSec > 180 && (
             <p className="text-center text-[11px] text-amber-300/80">
               ~{Math.round(totalRecordedSec)}s recorded — getting large in memory, consider finishing.
@@ -149,17 +170,19 @@ export default function App() {
           )}
           <div className="flex gap-3">
             <button
-              onClick={() => void looper.newLayer()}
+              onClick={() => void looper.advance()}
               className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
             >
-              New Layer
+              {primaryLabel}
             </button>
-            <button
-              onClick={() => (looper.paused ? looper.resume() : looper.pause())}
-              className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
-            >
-              {looper.paused ? 'Resume' : 'Pause'}
-            </button>
+            {active && (
+              <button
+                onClick={() => (looper.paused ? looper.resume() : looper.pause())}
+                className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+              >
+                {looper.paused ? 'Resume' : 'Pause'}
+              </button>
+            )}
             <button
               onClick={() => void looper.finish()}
               className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
