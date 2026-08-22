@@ -110,6 +110,7 @@ export function useLooper(options: UseLooperOptions = {}) {
   const armedRef = useRef(false);
   const armingRef = useRef(false);
   const armRef = useRef<() => void>(() => {});
+  const resumeRef = useRef<() => void>(() => {});
   loopModeRef.current = loopMode;
   loopLengthMsRef.current = loopLengthMs;
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -371,6 +372,8 @@ export function useLooper(options: UseLooperOptions = {}) {
 
   /** Primary layer action — behaves per loop mode / armed state. */
   const advance = useCallback(async () => {
+    // If paused, New Layer resumes recording first (no separate Resume tap).
+    if (pausedRef.current) resumeRef.current();
     if (loopModeRef.current === 'fixed') {
       if (armedRef.current) {
         recordNext();
@@ -477,6 +480,7 @@ export function useLooper(options: UseLooperOptions = {}) {
     }
     setPaused(false);
   }, []);
+  resumeRef.current = resume;
 
   /** Short A3 chime when the target note is hit (Phase 3). */
   const playHitTone = useCallback(() => {

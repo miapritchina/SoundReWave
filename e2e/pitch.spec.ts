@@ -21,12 +21,10 @@ test('New Layer commits a take and increments the layer count', async ({ page })
 
   await page.waitForTimeout(800); // sing for a beat
 
-  // Pause → paused badge appears; Resume → it clears.
+  // Pause → paused badge; New Layer auto-resumes (no separate Resume tap).
   await page.getByRole('button', { name: 'Pause' }).click();
   await expect(page.getByText('Paused')).toBeVisible({ timeout: 3_000 });
-  await page.getByRole('button', { name: 'Resume' }).click();
-  await expect(page.getByText('Paused')).toHaveCount(0, { timeout: 3_000 });
-
   await page.getByRole('button', { name: 'New Layer' }).click();
+  await expect(page.getByText('Paused')).toHaveCount(0, { timeout: 3_000 });
   await expect(page.getByText(/^1 layer$/)).toBeVisible({ timeout: 5_000 });
 });

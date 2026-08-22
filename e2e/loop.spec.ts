@@ -5,6 +5,7 @@ test('fixed loop mode auto-stops at the loop length and arms for the next', asyn
 
   // Open settings, switch to Fixed mode with the shortest length.
   await page.getByRole('button', { name: 'Visual settings' }).click();
+  await expect(page.getByTestId('app-version')).toContainText('v'); // build version shown
   await page.getByRole('button', { name: 'Fixed', exact: true }).click();
   await page.getByRole('button', { name: '4s', exact: true }).click();
 

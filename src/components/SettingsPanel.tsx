@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { VisualSettings, Preset } from '../lib/settings';
+import { VERSION, BUILD_SHA, BUILD_TIME } from '../version';
 
 interface SegProps<T extends string | number> {
   label: string;
@@ -157,6 +158,14 @@ export function SettingsPanel({
           ))}
         </div>
       )}
+
+      <div
+        data-testid="app-version"
+        className="border-t border-white/10 pt-2 text-center font-mono text-[10px] text-white/35"
+      >
+        v{VERSION} · {BUILD_SHA}
+        {BUILD_TIME ? ` · ${BUILD_TIME} UTC` : ''}
+      </div>
     </div>
   );
 }
