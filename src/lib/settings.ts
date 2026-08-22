@@ -1,6 +1,6 @@
 /** Visual/behavior settings, persisted per-viewer in localStorage. */
 
-export type StyleMode = 'layers' | 'bloom';
+export type StyleMode = 'layers' | 'bloom' | 'aurora';
 export type LoopMode = 'manual' | 'fixed';
 
 export interface VisualSettings {
@@ -15,6 +15,8 @@ export interface VisualSettings {
   loopMode: LoopMode;
   /** Fixed-loop length in seconds. */
   loopLengthSec: number;
+  /** Mic detection sensitivity 0..1 (persisted across reloads). */
+  sensitivity: number;
 }
 
 export const DEFAULT_SETTINGS: VisualSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: VisualSettings = {
   playhead: false,
   loopMode: 'manual',
   loopLengthSec: 6,
+  sensitivity: 0.65,
 };
 
 /** Visual-only keys — presets carry these; loop mode/sensitivity are separate. */
@@ -48,6 +51,7 @@ export interface Preset {
 export const BUILTIN_PRESETS: Preset[] = [
   { name: 'Layers', builtin: true, settings: { style: 'layers', octaves: 3, windowSec: 10, playhead: false } },
   { name: 'Bloom', builtin: true, settings: { style: 'bloom', octaves: 2, windowSec: 8, playhead: true } },
+  { name: 'Aurora', builtin: true, settings: { style: 'aurora', octaves: 2, windowSec: 8, playhead: false } },
 ];
 
 const SETTINGS_KEY = 'srw:settings';

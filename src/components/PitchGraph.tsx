@@ -6,6 +6,7 @@ import { curveCatmullRom } from '@visx/curve';
 import type { Loop, PitchPoint } from '../lib/contour';
 import { toSegments } from '../lib/contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from '../lib/scales';
+import { hueShift } from '../lib/palette';
 import type { StyleMode } from '../lib/settings';
 
 export interface PitchGraphProps {
@@ -60,6 +61,7 @@ export function PitchGraph({
   const innerH = Math.max(0, height - padding.top - padding.bottom);
   const clipId = useId();
   const bloom = style === 'bloom';
+  const aurora = style === 'aurora';
 
   const lastActive = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
 
@@ -132,21 +134,37 @@ export function PitchGraph({
           );
         })}
 
+        {/* Aurora: each take is its own left→right hue gradient. */}
+        {aurora && (
+          <defs>
+            {committedSegments.map((loop, li) => (
+              <linearGradient key={loop.id} id={`g-${clipId}-${li}`} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={loop.color} />
+                <stop offset="100%" stopColor={hueShift(loop.color, 55)} />
+              </linearGradient>
+            ))}
+            <linearGradient id={`g-${clipId}-active`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={activeColor} />
+              <stop offset="100%" stopColor={hueShift(activeColor, 55)} />
+            </linearGradient>
+          </defs>
+        )}
+
         <clipPath id={clipId}>
           <rect x={0} y={0} width={innerW} height={innerH} />
         </clipPath>
         <g clipPath={`url(#${clipId})`}>
           {/* Committed layers */}
-          {committedSegments.map((loop) =>
+          {committedSegments.map((loop, li) =>
             loop.segments.map((seg, i) => (
               <LinePath
                 key={`${loop.id}-${i}`}
                 data={seg}
                 x={(d) => xScale(d.tMs)}
                 y={(d) => yScale(d.freq)}
-                stroke={bloom ? BLOOM_LAYER : loop.color}
-                strokeOpacity={bloom ? 0.4 : 0.72}
-                strokeWidth={bloom ? 3 : 2.25}
+                stroke={aurora ? `url(#g-${clipId}-${li})` : bloom ? BLOOM_LAYER : loop.color}
+                strokeOpacity={aurora ? 0.6 : bloom ? 0.4 : 0.72}
+                strokeWidth={aurora ? 2.5 : bloom ? 3 : 2.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 style={bloom ? { mixBlendMode: 'screen' } : undefined}
@@ -163,7 +181,7 @@ export function PitchGraph({
               data={seg}
               x={(d) => xScale(d.tMs)}
               y={(d) => yScale(d.freq)}
-              stroke={bloom ? BLOOM_ACTIVE : activeColor}
+              stroke={aurora ? `url(#g-${clipId}-active)` : bloom ? BLOOM_ACTIVE : activeColor}
               strokeOpacity={0.98}
               strokeWidth={bloom ? 3.25 : 2.75}
               strokeLinecap="round"

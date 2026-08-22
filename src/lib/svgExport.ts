@@ -1,6 +1,7 @@
 import type { Loop } from './contour';
 import { toSegments, type Segment } from './contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from './scales';
+import { hueShift } from './palette';
 import type { StyleMode } from './settings';
 
 const BLOOM_LAYER = '#ff9a4d';
@@ -73,10 +74,23 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
     .join('');
 
   const bloom = opts.style === 'bloom';
+  const aurora = opts.style === 'aurora';
+
+  const defs = aurora
+    ? '<defs>' +
+      loops
+        .map(
+          (loop, i) =>
+            `<linearGradient id="g${i}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="${loop.color}"/><stop offset="100%" stop-color="${hueShift(loop.color, 55)}"/></linearGradient>`,
+        )
+        .join('') +
+      '</defs>'
+    : '';
+
   const paths = loops
-    .map((loop) => {
-      const stroke = bloom ? BLOOM_LAYER : loop.color;
-      const opacity = bloom ? 0.4 : 0.85;
+    .map((loop, i) => {
+      const stroke = aurora ? `url(#g${i})` : bloom ? BLOOM_LAYER : loop.color;
+      const opacity = aurora ? 0.6 : bloom ? 0.4 : 0.85;
       const blend = bloom ? ' style="mix-blend-mode:screen"' : '';
       const w = bloom ? 3 : 2.5;
       return toSegments(loop.points, maxBridgeMs)
@@ -90,6 +104,7 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     `<rect width="${width}" height="${height}" fill="${bg}"/>` +
+    defs +
     grid +
     paths +
     `</svg>`;

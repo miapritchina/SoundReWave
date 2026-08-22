@@ -50,6 +50,20 @@ export const GapBridging: Story = {
   },
 };
 
+export const Aurora: Story = {
+  name: 'Aurora style (gradient lines)',
+  args: {
+    style: 'aurora',
+    committedLoops: [
+      demoLoop(0, [N('A3'), N('C4'), N('E4'), N('D4')]),
+      demoLoop(1, [N('E4'), N('G4'), N('A4'), N('G4')]),
+      demoLoop(2, [N('C3'), N('E3'), N('G3'), N('C4')]),
+      demoLoop(3, [N('D4'), N('F4'), N('E4'), N('C4')]),
+    ],
+    activePoints: demoPoints(4, [N('A4'), N('B4'), N('A4'), N('F4')]),
+  },
+};
+
 export const Bloom: Story = {
   name: 'Bloom style (word overlap)',
   args: {

@@ -10,7 +10,7 @@ test('fixed loop mode auto-stops at the loop length and arms for the next', asyn
   await page.getByRole('button', { name: '4s', exact: true }).click();
 
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByText('A3', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('current-note')).toHaveText('A3', { timeout: 10_000 });
 
   // While recording, the primary button reads "Stop".
   await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();

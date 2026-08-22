@@ -15,6 +15,7 @@ export function NoteReadout({ live, onTarget = false }: NoteReadoutProps) {
   return (
     <div className="flex items-center gap-4">
       <div
+        data-testid="current-note"
         className={`font-mono text-4xl font-semibold tabular-nums transition-colors ${
           onTarget ? 'text-hot' : live ? 'text-accent' : 'text-white/25'
         }`}
