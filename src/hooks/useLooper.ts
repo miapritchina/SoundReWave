@@ -145,7 +145,8 @@ export function useLooper(options: UseLooperOptions = {}) {
           if (prev && tMs - prev.tMs < 250) {
             if (f > prev.freq * 0.4 && f < prev.freq * 0.6) f *= 2; // ~octave low
             else if (f > prev.freq * 0.2 && f < prev.freq * 0.3) f *= 4; // ~2 octaves low
-            if (12 * Math.log2(prev.freq / f) > 10) voiced = false; // implausible drop
+            else if (f > prev.freq * 1.7 && f < prev.freq * 2.5) f /= 2; // ~octave high
+            if (Math.abs(12 * Math.log2(f / prev.freq)) > 10) voiced = false; // implausible leap
           }
         }
 
