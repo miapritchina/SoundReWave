@@ -15,6 +15,20 @@ export interface UseLooperOptions {
   onHit?: (freq: number) => void;
 }
 
+/**
+ * iOS 16.4+ audio session hint. "playback" makes Web Audio ignore the hardware
+ * mute switch; "play-and-record" is appropriate while the mic is live. No-op
+ * (and harmless) where unsupported.
+ */
+function setAudioSession(type: 'playback' | 'play-and-record'): void {
+  try {
+    const nav = navigator as unknown as { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = type;
+  } catch {
+    /* unsupported browser */
+  }
+}
+
 function pickMime(): string | undefined {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
   for (const c of candidates) {
@@ -63,6 +77,7 @@ export function useLooper(options: UseLooperOptions = {}) {
   const startTsRef = useRef(0);
   const lastSampleRef = useRef(0);
   const pointsRef = useRef<PitchPoint[]>([]);
+  const lastVoicedRef = useRef<{ freq: number; tMs: number } | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -97,6 +112,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       startTsRef.current = performance.now();
       lastSampleRef.current = 0;
       pointsRef.current = [];
+      lastVoicedRef.current = null;
       setActivePoints([]);
 
       const tick = () => {
@@ -115,12 +131,29 @@ export function useLooper(options: UseLooperOptions = {}) {
         const gates = gatesFor(sensitivityRef.current);
         // Meter: scale post-gain RMS to a readable 0..1 (voice sits ~0.05–0.3).
         setInputLevel(Math.min(1, rms * 4));
-        const voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+        let voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+
+        // Pitch-continuity guard: kill the downward plunges at phrase edges.
+        // Autocorrelation often reports a sub-harmonic (~an octave too low), and
+        // noise during pauses slips through as a garbage low pitch. Correct clear
+        // octave-halving errors relative to the recent pitch, and drop any
+        // remaining implausible downward leap to a clean pen-up (gap) instead of
+        // drawing a line to the floor.
+        let f = freq;
+        if (voiced) {
+          const prev = lastVoicedRef.current;
+          if (prev && tMs - prev.tMs < 250) {
+            if (f > prev.freq * 0.4 && f < prev.freq * 0.6) f *= 2; // ~octave low
+            else if (f > prev.freq * 0.2 && f < prev.freq * 0.3) f *= 4; // ~2 octaves low
+            if (12 * Math.log2(prev.freq / f) > 10) voiced = false; // implausible drop
+          }
+        }
 
         if (voiced) {
-          setLive({ freq, clarity, note: freqToName(freq), cents: centsOff(freq) });
-          onHitRef.current?.(freq);
-          pointsRef.current = [...pointsRef.current, { tMs, freq, clarity }];
+          lastVoicedRef.current = { freq: f, tMs };
+          setLive({ freq: f, clarity, note: freqToName(f), cents: centsOff(f) });
+          onHitRef.current?.(f);
+          pointsRef.current = [...pointsRef.current, { tMs, freq: f, clarity }];
         } else {
           setLive(null);
           const last = pointsRef.current[pointsRef.current.length - 1];
@@ -200,6 +233,7 @@ export function useLooper(options: UseLooperOptions = {}) {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioCtx();
+      setAudioSession('play-and-record');
       await ctx.resume();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -233,6 +267,7 @@ export function useLooper(options: UseLooperOptions = {}) {
     await commitTake();
     // reset the active take and start recording the next one
     pointsRef.current = [];
+    lastVoicedRef.current = null;
     setActivePoints([]);
     startTsRef.current = performance.now();
     startRecorder();
@@ -251,12 +286,19 @@ export function useLooper(options: UseLooperOptions = {}) {
     setStatus('finished');
   }, [commitTake]);
 
-  const playAll = useCallback(() => {
+  const playAll = useCallback(async () => {
     const ctx = ctxRef.current;
     if (!ctx) return;
-    void ctx.resume();
+    // iOS: route to the "playback" session so the hardware mute switch doesn't
+    // silence Web Audio, and wait for the context to actually resume before
+    // scheduling sources (a suspended context plays nothing).
+    setAudioSession('playback');
+    await ctx.resume();
     const withAudio = committed.filter((l) => l.audio);
-    if (!withAudio.length) return;
+    if (!withAudio.length) {
+      setError('No recorded audio to play back — the take may not have captured. Try recording again.');
+      return;
+    }
     const gain = ctx.createGain();
     gain.gain.value = withAudio.length > 1 ? 1 / Math.sqrt(withAudio.length) : 1;
     gain.connect(ctx.destination);
