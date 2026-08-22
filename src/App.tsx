@@ -39,8 +39,18 @@ export default function App() {
     onHit: handleHit,
     loopMode: settings.loopMode,
     loopLengthMs: settings.loopLengthSec * 1000,
+    sensitivity: settings.sensitivity,
   });
   looperRef.current = looper;
+
+  // Keep the live sensitivity and the persisted setting in sync.
+  const handleSensitivity = useCallback(
+    (v: number) => {
+      looper.setSensitivity(v);
+      update({ sensitivity: v });
+    },
+    [looper, update],
+  );
 
   const { status, committed, activePoints } = looper;
   const recording = status === 'recording';
@@ -121,10 +131,40 @@ export default function App() {
           </div>
         )}
         {status !== 'recording' && !finished && (
-          <div className="absolute inset-0 grid place-items-center bg-ink/40 backdrop-blur-sm">
-            <p className="max-w-xs text-center text-sm text-white/60">
-              {looper.error ?? 'Tap Start, allow the mic, and sing. Your pitch draws in real time; hit A3 for a chime.'}
-            </p>
+          <div className="absolute inset-0 grid place-items-center overflow-auto bg-ink/70 p-5 backdrop-blur-sm">
+            {looper.error ? (
+              <p className="max-w-xs text-center text-sm text-hot">{looper.error}</p>
+            ) : (
+              <div className="max-w-sm space-y-3">
+                <h2 className="font-display text-xl font-bold text-white">Paint your voice 🎤</h2>
+                <p className="text-sm leading-relaxed text-white/65">
+                  SoundReWave turns your singing — or just talking — into a live pitch drawing,
+                  then lets you stack takes into overlapping “sound shapes.”
+                </p>
+                <ul className="space-y-2 text-sm text-white/80">
+                  <li>
+                    <b className="text-accent">Start</b> — allow the mic, then sing or say a word.
+                  </li>
+                  <li>
+                    📈 Your pitch draws as a live line. Hit <b>A3</b> for a chime.
+                  </li>
+                  <li>
+                    <b className="text-accent">New Layer</b> stacks another take over the last one.
+                  </li>
+                  <li>
+                    <b className="text-accent">Finish</b> plays every layer together — then export the
+                    audio (WAV/MP3) or the artwork (SVG/PNG).
+                  </li>
+                  <li>
+                    <b className="text-accent">⚙ Settings</b> — visual styles, pitch range, loop mode,
+                    and a playhead.
+                  </li>
+                </ul>
+                <p className="text-xs leading-relaxed text-white/40">
+                  Best with headphones. Tip: sing one short word and loop it a few times to watch it build up.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -153,7 +193,7 @@ export default function App() {
       ) : recording ? (
         <div className="flex flex-col gap-2">
           {active && (
-            <SensitivityControl value={looper.sensitivity} onChange={looper.setSensitivity} level={looper.inputLevel} />
+            <SensitivityControl value={looper.sensitivity} onChange={handleSensitivity} level={looper.inputLevel} />
           )}
           {fixed && active && (
             <p className="text-center font-mono text-[11px] text-white/50">{remainingSec}s left in loop</p>

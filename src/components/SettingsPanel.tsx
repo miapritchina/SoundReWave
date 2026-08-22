@@ -64,6 +64,7 @@ export function SettingsPanel({
         options={[
           { value: 'layers', label: 'Layers' },
           { value: 'bloom', label: 'Bloom' },
+          { value: 'aurora', label: 'Aurora' },
         ]}
         onChange={(v) => onChange({ style: v })}
       />

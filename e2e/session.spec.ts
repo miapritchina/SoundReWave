@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('full session: record layers, finish, play, and export', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByText('A3', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('current-note')).toHaveText('A3', { timeout: 10_000 });
 
   // Record two layers.
   await page.waitForTimeout(900);
