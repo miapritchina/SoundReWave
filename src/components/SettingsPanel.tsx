@@ -77,16 +77,23 @@ export function SettingsPanel({
         ]}
         onChange={(v) => onChange({ octaves: v })}
       />
-      <Segmented
-        label="Speed"
-        value={settings.windowSec}
-        options={[
-          { value: 6, label: 'Fast' },
-          { value: 9, label: 'Med' },
-          { value: 14, label: 'Slow' },
-        ]}
-        onChange={(v) => onChange({ windowSec: v })}
-      />
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] text-white/55">Speed</span>
+        <div className="flex flex-1 items-center gap-2">
+          {/* Reversed: drag right = faster = shorter window. */}
+          <input
+            type="range"
+            min={2}
+            max={18}
+            step={1}
+            value={20 - settings.windowSec}
+            onChange={(e) => onChange({ windowSec: 20 - Number(e.target.value) })}
+            className="min-w-0 flex-1 accent-accent"
+            aria-label="Graph speed"
+          />
+          <span className="w-9 text-right font-mono text-[11px] text-white/50">{settings.windowSec}s</span>
+        </div>
+      </div>
       <div className="border-t border-white/10 pt-2">
         <Segmented
           label="Loop"

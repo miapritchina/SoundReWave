@@ -395,7 +395,9 @@ export function useLooper(options: UseLooperOptions = {}) {
     streamRef.current = null;
     inputGainRef.current = null;
     armedRef.current = false;
+    pausedRef.current = false;
     setArmed(false);
+    setPaused(false);
     setLive(null);
     setInputLevel(0);
     setActivePoints([]);
@@ -525,7 +527,9 @@ export function useLooper(options: UseLooperOptions = {}) {
     pointsRef.current = [];
     inputGainRef.current = null;
     armedRef.current = false;
+    pausedRef.current = false;
     setArmed(false);
+    setPaused(false);
     setCommitted([]);
     setActivePoints([]);
     setLive(null);

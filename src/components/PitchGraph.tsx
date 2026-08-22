@@ -31,8 +31,10 @@ export interface PitchGraphProps {
 const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 44 };
 
 // Bloom palette: warm, semi-transparent, screen-blended so overlaps brighten.
-const BLOOM_LAYER = '#ff8a1f';
-const BLOOM_ACTIVE = '#ffd24a';
+// The layer color keeps real blue headroom so stacked takes screen up toward
+// WHITE (a hot core) where many overlap, not just saturated orange.
+const BLOOM_LAYER = '#ff9a4d';
+const BLOOM_ACTIVE = '#fff0c8';
 
 /**
  * Layered pitch-contour graph. Pure/declarative visx (SVG) so the same
@@ -68,9 +70,10 @@ export function PitchGraph({
       const end = Math.max(windowMs, lastActive);
       return [end - windowMs, end];
     }
-    let max = windowMs;
+    // Finished: fit the longest take to the full width so the art fills the screen.
+    let max = 0;
     for (const l of committedLoops) max = Math.max(max, l.durationMs);
-    return [0, max];
+    return [0, max > 0 ? max : windowMs];
   }, [windowMs, committedLoops, lastActive]);
 
   const xScale = useMemo(
@@ -142,7 +145,7 @@ export function PitchGraph({
                 x={(d) => xScale(d.tMs)}
                 y={(d) => yScale(d.freq)}
                 stroke={bloom ? BLOOM_LAYER : loop.color}
-                strokeOpacity={bloom ? 0.34 : 0.72}
+                strokeOpacity={bloom ? 0.4 : 0.72}
                 strokeWidth={bloom ? 3 : 2.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
