@@ -3,6 +3,7 @@ import { PitchDetector } from 'pitchy';
 import type { Loop, PitchPoint } from '../lib/contour';
 import { centsOff, freqToName } from '../lib/pitch';
 import { layerColor } from '../lib/palette';
+import { peakOf } from '../lib/mixdown';
 import type { LiveFrame } from './useMicPitch';
 
 export type LooperStatus = 'idle' | 'requesting' | 'recording' | 'finished' | 'denied' | 'error';
@@ -12,6 +13,8 @@ export interface UseLooperOptions {
   frameIntervalMs?: number;
   /** Initial detection sensitivity 0..1 (see gatesFor). Live-adjustable. */
   sensitivity?: number;
+  /** Auto-finish after this much continuous silence, once any voice was heard. */
+  silenceStopMs?: number;
   onHit?: (freq: number) => void;
 }
 
@@ -59,7 +62,12 @@ export function gatesFor(sensitivity: number): { clarity: number; rms: number; g
 }
 
 export function useLooper(options: UseLooperOptions = {}) {
-  const { frameIntervalMs = 33, sensitivity: initialSensitivity = 0.65, onHit } = options;
+  const {
+    frameIntervalMs = 33,
+    sensitivity: initialSensitivity = 0.65,
+    silenceStopMs = 4000,
+    onHit,
+  } = options;
 
   const [status, setStatus] = useState<LooperStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +86,10 @@ export function useLooper(options: UseLooperOptions = {}) {
   const lastSampleRef = useRef(0);
   const pointsRef = useRef<PitchPoint[]>([]);
   const lastVoicedRef = useRef<{ freq: number; tMs: number } | null>(null);
+  const hadVoiceRef = useRef(false);
+  const lastVoiceWallRef = useRef(0);
+  const autoStoppingRef = useRef(false);
+  const autoFinishRef = useRef<() => void>(() => {});
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -113,6 +125,8 @@ export function useLooper(options: UseLooperOptions = {}) {
       lastSampleRef.current = 0;
       pointsRef.current = [];
       lastVoicedRef.current = null;
+      hadVoiceRef.current = false;
+      autoStoppingRef.current = false;
       setActivePoints([]);
 
       const tick = () => {
@@ -152,6 +166,8 @@ export function useLooper(options: UseLooperOptions = {}) {
 
         if (voiced) {
           lastVoicedRef.current = { freq: f, tMs };
+          hadVoiceRef.current = true;
+          lastVoiceWallRef.current = now;
           setLive({ freq: f, clarity, note: freqToName(f), cents: centsOff(f) });
           onHitRef.current?.(f);
           pointsRef.current = [...pointsRef.current, { tMs, freq: f, clarity }];
@@ -163,10 +179,22 @@ export function useLooper(options: UseLooperOptions = {}) {
           }
         }
         setActivePoints(pointsRef.current);
+
+        // Auto-finish once we've heard voice and then gone quiet for a while.
+        if (
+          hadVoiceRef.current &&
+          !autoStoppingRef.current &&
+          now - lastVoiceWallRef.current > silenceStopMs
+        ) {
+          autoStoppingRef.current = true;
+          if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+          autoFinishRef.current();
+        }
       };
       rafRef.current = requestAnimationFrame(tick);
     },
-    [frameIntervalMs],
+    [frameIntervalMs, silenceStopMs],
   );
 
   // --- recording ---
@@ -224,6 +252,11 @@ export function useLooper(options: UseLooperOptions = {}) {
     setError(null);
     setStatus('requesting');
     try {
+      // Must precede getUserMedia: a prior playback set the session to
+      // 'playback', which iOS refuses to capture under ("AudioSession category
+      // is not compatible with audio capture"). Reset to a capture-capable
+      // category first.
+      setAudioSession('play-and-record');
       const stream = await navigator.mediaDevices.getUserMedia({
         // autoGainControl normalizes distance so you don't have to be on top of
         // the mic; EC/NS stay off to keep the pitch (and recorded audio) faithful.
@@ -234,7 +267,6 @@ export function useLooper(options: UseLooperOptions = {}) {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioCtx();
-      setAudioSession('play-and-record');
       await ctx.resume();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
@@ -286,6 +318,7 @@ export function useLooper(options: UseLooperOptions = {}) {
     setActivePoints([]);
     setStatus('finished');
   }, [commitTake]);
+  autoFinishRef.current = finish;
 
   const playAll = useCallback(async () => {
     const ctx = ctxRef.current;
@@ -301,7 +334,11 @@ export function useLooper(options: UseLooperOptions = {}) {
       return;
     }
     const gain = ctx.createGain();
-    gain.gain.value = withAudio.length > 1 ? 1 / Math.sqrt(withAudio.length) : 1;
+    // Normalize quiet mic takes to a usable level, then keep headroom for the
+    // number of overlapping layers so the sum doesn't clip.
+    const peak = Math.max(...withAudio.map((l) => peakOf(l.audio!)), 1e-6);
+    const makeup = Math.min(200, 0.9 / peak);
+    gain.gain.value = makeup / Math.sqrt(withAudio.length);
     gain.connect(ctx.destination);
     let longest = 0;
     playSourcesRef.current = withAudio.map((l) => {
