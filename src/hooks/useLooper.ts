@@ -252,6 +252,11 @@ export function useLooper(options: UseLooperOptions = {}) {
     setError(null);
     setStatus('requesting');
     try {
+      // Must precede getUserMedia: a prior playback set the session to
+      // 'playback', which iOS refuses to capture under ("AudioSession category
+      // is not compatible with audio capture"). Reset to a capture-capable
+      // category first.
+      setAudioSession('play-and-record');
       const stream = await navigator.mediaDevices.getUserMedia({
         // autoGainControl normalizes distance so you don't have to be on top of
         // the mic; EC/NS stay off to keep the pitch (and recorded audio) faithful.
@@ -262,7 +267,6 @@ export function useLooper(options: UseLooperOptions = {}) {
         window.AudioContext ??
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioCtx();
-      setAudioSession('play-and-record');
       await ctx.resume();
       ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
