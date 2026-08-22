@@ -1,6 +1,9 @@
 import type { Loop } from './contour';
 import { toSegments, type Segment } from './contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from './scales';
+import type { StyleMode } from './settings';
+
+const BLOOM_LAYER = '#ff8a1f';
 
 export interface SvgOptions {
   width?: number;
@@ -10,6 +13,7 @@ export interface SvgOptions {
   windowMs?: number;
   maxBridgeMs?: number;
   background?: string;
+  style?: StyleMode;
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
@@ -68,15 +72,20 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
     })
     .join('');
 
+  const bloom = opts.style === 'bloom';
   const paths = loops
-    .map((loop) =>
-      toSegments(loop.points, maxBridgeMs)
+    .map((loop) => {
+      const stroke = bloom ? BLOOM_LAYER : loop.color;
+      const opacity = bloom ? 0.36 : 0.85;
+      const blend = bloom ? ' style="mix-blend-mode:screen"' : '';
+      const w = bloom ? 3 : 2.5;
+      return toSegments(loop.points, maxBridgeMs)
         .map(
           (seg) =>
-            `<path d="${segToPath(seg)}" fill="none" stroke="${loop.color}" stroke-width="2.5" stroke-opacity="0.85" stroke-linecap="round" stroke-linejoin="round"/>`,
+            `<path d="${segToPath(seg)}" fill="none" stroke="${stroke}" stroke-width="${w}" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"${blend}/>`,
         )
-        .join(''),
-    )
+        .join('');
+    })
     .join('');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +

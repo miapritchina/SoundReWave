@@ -1,26 +1,29 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { PitchGraph } from './components/PitchGraph';
 import { NoteReadout } from './components/NoteReadout';
 import { ExportPanel } from './components/ExportPanel';
 import { SensitivityControl } from './components/SensitivityControl';
+import { SettingsPanel } from './components/SettingsPanel';
 import { useLooper } from './hooks/useLooper';
+import { useSettings } from './hooks/useSettings';
 import { useElementSize } from './hooks/useElementSize';
 import { A3_MIDI, isNoteHit } from './lib/pitch';
 import { layerColor } from './lib/palette';
+import { autoRange } from './lib/scales';
 
 export default function App() {
   const [graphRef, size] = useElementSize<HTMLDivElement>();
   const [onTarget, setOnTarget] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const onTargetRef = useRef(false);
   const flashTimer = useRef<number | null>(null);
   const looperRef = useRef<ReturnType<typeof useLooper> | null>(null);
 
+  const { settings, update, presets, applyPreset, savePreset, deletePreset } = useSettings();
+
   const handleHit = useCallback((freq: number) => {
     const hit = isNoteHit(freq, A3_MIDI);
-    if (hit && !onTargetRef.current) {
-      // rising edge: chime once + flash
-      looperRef.current?.playHitTone();
-    }
+    if (hit && !onTargetRef.current) looperRef.current?.playHitTone();
     if (hit) {
       onTargetRef.current = true;
       setOnTarget(true);
@@ -35,21 +38,44 @@ export default function App() {
   const looper = useLooper({ onHit: handleHit });
   looperRef.current = looper;
 
-  const { status, committed } = looper;
+  const { status, committed, activePoints } = looper;
   const recording = status === 'recording';
   const finished = status === 'finished';
   const layerIdx = committed.length;
 
+  const range = useMemo(
+    () => autoRange(committed, settings.octaves, activePoints),
+    [committed, settings.octaves, activePoints],
+  );
+
+  // Warn on total recorded time (real memory pressure), not layer count.
+  const totalRecordedSec = useMemo(() => {
+    const active = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
+    return (committed.reduce((s, l) => s + l.durationMs, 0) + active) / 1000;
+  }, [committed, activePoints]);
+
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 p-4 no-touch-callout">
+    <div className="mx-auto flex h-full max-w-3xl flex-col gap-3 p-4 no-touch-callout">
       <header className="flex items-center justify-between">
         <h1 className="font-display text-xl font-bold tracking-tight">
           Sound<span className="text-glow">Re</span>Wave
         </h1>
-        <span className="font-mono text-[11px] text-white/40">
-          {committed.length} layer{committed.length === 1 ? '' : 's'}
-          {finished && ' · finished'}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[11px] text-white/40">
+            {committed.length} layer{committed.length === 1 ? '' : 's'}
+            {finished && ' · finished'}
+          </span>
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            className={`rounded-lg border px-2 py-1 text-sm ${
+              showSettings ? 'border-accent/60 text-accent' : 'border-white/15 text-white/60'
+            }`}
+            aria-label="Visual settings"
+            aria-pressed={showSettings}
+          >
+            ⚙
+          </button>
+        </div>
       </header>
 
       <div
@@ -63,13 +89,24 @@ export default function App() {
             width={size.width}
             height={size.height}
             committedLoops={committed}
-            activePoints={looper.activePoints}
+            activePoints={activePoints}
             activeColor={layerColor(layerIdx)}
+            fMin={range.fMin}
+            fMax={range.fMax}
+            windowMs={settings.windowSec * 1000}
+            style={settings.style}
+            playhead={settings.playhead}
+            playheadTMs={looper.isPlaying ? looper.playbackMs : undefined}
           />
         )}
         {onTarget && (
           <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-hot px-3 py-1 font-mono text-xs font-semibold text-white">
             A3!
+          </div>
+        )}
+        {looper.paused && (
+          <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-amber-400/90 px-3 py-1 font-mono text-xs font-semibold text-ink">
+            Paused
           </div>
         )}
         {status !== 'recording' && !finished && (
@@ -80,6 +117,17 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onChange={update}
+          presets={presets}
+          onApplyPreset={applyPreset}
+          onSavePreset={savePreset}
+          onDeletePreset={deletePreset}
+        />
+      )}
 
       {!finished && <NoteReadout live={looper.live} onTarget={onTarget} />}
 
@@ -93,29 +141,31 @@ export default function App() {
         </button>
       ) : recording ? (
         <div className="flex flex-col gap-2">
-          <SensitivityControl
-            value={looper.sensitivity}
-            onChange={looper.setSensitivity}
-            level={looper.inputLevel}
-          />
-          {committed.length >= 8 && (
+          <SensitivityControl value={looper.sensitivity} onChange={looper.setSensitivity} level={looper.inputLevel} />
+          {totalRecordedSec > 180 && (
             <p className="text-center text-[11px] text-amber-300/80">
-              {committed.length} layers — lots of audio in memory. Consider finishing soon.
+              ~{Math.round(totalRecordedSec)}s recorded — getting large in memory, consider finishing.
             </p>
           )}
           <div className="flex gap-3">
-          <button
-            onClick={() => void looper.newLayer()}
-            className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
-          >
-            New Layer
-          </button>
-          <button
-            onClick={() => void looper.finish()}
-            className="rounded-xl border border-white/20 px-6 font-display text-lg font-semibold text-white/80 active:scale-[0.98]"
-          >
-            Finish
-          </button>
+            <button
+              onClick={() => void looper.newLayer()}
+              className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
+            >
+              New Layer
+            </button>
+            <button
+              onClick={() => (looper.paused ? looper.resume() : looper.pause())}
+              className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+            >
+              {looper.paused ? 'Resume' : 'Pause'}
+            </button>
+            <button
+              onClick={() => void looper.finish()}
+              className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+            >
+              Finish
+            </button>
           </div>
         </div>
       ) : (
@@ -124,7 +174,7 @@ export default function App() {
           <div className="flex gap-3">
             {!looper.isPlaying ? (
               <button
-                onClick={looper.playAll}
+                onClick={() => void looper.playAll()}
                 className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
               >
                 ▶ Play all layers
@@ -144,7 +194,7 @@ export default function App() {
               New
             </button>
           </div>
-          <ExportPanel loops={committed} />
+          <ExportPanel loops={committed} style={settings.style} fMin={range.fMin} fMax={range.fMax} />
         </div>
       )}
     </div>

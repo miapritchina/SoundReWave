@@ -19,8 +19,14 @@ test('New Layer commits a take and increments the layer count', async ({ page })
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByText('A3', { exact: true })).toBeVisible({ timeout: 10_000 });
 
-  await page.waitForTimeout(1200); // sing for a beat
-  await page.getByRole('button', { name: 'New Layer' }).click();
+  await page.waitForTimeout(800); // sing for a beat
 
+  // Pause → paused badge appears; Resume → it clears.
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.getByText('Paused')).toBeVisible({ timeout: 3_000 });
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(page.getByText('Paused')).toHaveCount(0, { timeout: 3_000 });
+
+  await page.getByRole('button', { name: 'New Layer' }).click();
   await expect(page.getByText(/^1 layer$/)).toBeVisible({ timeout: 5_000 });
 });

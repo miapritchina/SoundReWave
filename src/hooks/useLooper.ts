@@ -75,6 +75,9 @@ export function useLooper(options: UseLooperOptions = {}) {
   const [activePoints, setActivePoints] = useState<PitchPoint[]>([]);
   const [live, setLive] = useState<LiveFrame | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [paused, setPaused] = useState(false);
+  /** Playback position in ms while playing all layers, else null. */
+  const [playbackMs, setPlaybackMs] = useState<number | null>(null);
   /** Live input loudness 0..1 (post-gain RMS, scaled) for the meter. */
   const [inputLevel, setInputLevel] = useState(0);
   const [sensitivity, setSensitivityState] = useState(initialSensitivity);
@@ -90,6 +93,9 @@ export function useLooper(options: UseLooperOptions = {}) {
   const lastVoiceWallRef = useRef(0);
   const autoStoppingRef = useRef(false);
   const autoFinishRef = useRef<() => void>(() => {});
+  const pausedRef = useRef(false);
+  const pauseStartRef = useRef(0);
+  const playRafRef = useRef<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const playSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -127,10 +133,13 @@ export function useLooper(options: UseLooperOptions = {}) {
       lastVoicedRef.current = null;
       hadVoiceRef.current = false;
       autoStoppingRef.current = false;
+      pausedRef.current = false;
       setActivePoints([]);
+      setPaused(false);
 
       const tick = () => {
         rafRef.current = requestAnimationFrame(tick);
+        if (pausedRef.current) return;
         const now = performance.now();
         if (now - lastSampleRef.current < frameIntervalMs) return;
         lastSampleRef.current = now;
@@ -349,9 +358,54 @@ export function useLooper(options: UseLooperOptions = {}) {
       longest = Math.max(longest, l.audio!.duration);
       return src;
     });
+    const startAt = ctx.currentTime;
+    const totalMs = longest * 1000;
     setIsPlaying(true);
-    window.setTimeout(() => setIsPlaying(false), longest * 1000 + 100);
+    setPlaybackMs(0);
+    const track = () => {
+      const t = (ctx.currentTime - startAt) * 1000;
+      if (t >= totalMs) {
+        setIsPlaying(false);
+        setPlaybackMs(null);
+        playRafRef.current = null;
+        return;
+      }
+      setPlaybackMs(t);
+      playRafRef.current = requestAnimationFrame(track);
+    };
+    playRafRef.current = requestAnimationFrame(track);
   }, [committed]);
+
+  const pause = useCallback(() => {
+    if (pausedRef.current) return;
+    pausedRef.current = true;
+    pauseStartRef.current = performance.now();
+    try {
+      recorderRef.current?.pause();
+    } catch {
+      /* ignore */
+    }
+    setPaused(true);
+    setLive(null);
+    setInputLevel(0);
+  }, []);
+
+  const resume = useCallback(() => {
+    if (!pausedRef.current) return;
+    // Shift the time base forward by the paused span so the contour stays
+    // aligned with the (also paused) recorded audio — no gap on resume.
+    const d = performance.now() - pauseStartRef.current;
+    startTsRef.current += d;
+    lastVoiceWallRef.current += d;
+    lastSampleRef.current += d;
+    pausedRef.current = false;
+    try {
+      recorderRef.current?.resume();
+    } catch {
+      /* ignore */
+    }
+    setPaused(false);
+  }, []);
 
   /** Short A3 chime when the target note is hit (Phase 3). */
   const playHitTone = useCallback(() => {
@@ -379,7 +433,10 @@ export function useLooper(options: UseLooperOptions = {}) {
       }
     });
     playSourcesRef.current = [];
+    if (playRafRef.current != null) cancelAnimationFrame(playRafRef.current);
+    playRafRef.current = null;
     setIsPlaying(false);
+    setPlaybackMs(null);
   }, []);
 
   const reset = useCallback(() => {
@@ -406,12 +463,16 @@ export function useLooper(options: UseLooperOptions = {}) {
     activePoints,
     live,
     isPlaying,
+    paused,
+    playbackMs,
     inputLevel,
     sensitivity,
     setSensitivity,
     start,
     newLayer,
     finish,
+    pause,
+    resume,
     playAll,
     stopPlayback,
     playHitTone,

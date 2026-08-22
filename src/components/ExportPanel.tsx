@@ -4,14 +4,19 @@ import { svgFromLoops, pngFromSvg, downloadBlob } from '../lib/svgExport';
 import { mixOverlapped, mixSequential } from '../lib/mixdown';
 import { encodeWav } from '../lib/wav';
 
+import type { StyleMode } from '../lib/settings';
+
 export interface ExportPanelProps {
   loops: Loop[];
+  style?: StyleMode;
+  fMin?: number;
+  fMax?: number;
 }
 
 type AudioJob = 'wav-overlap' | 'wav-seq' | 'mp3-overlap' | 'mp3-seq';
 type Job = 'svg' | 'png' | AudioJob | null;
 
-export function ExportPanel({ loops }: ExportPanelProps) {
+export function ExportPanel({ loops, style, fMin, fMax }: ExportPanelProps) {
   const [busy, setBusy] = useState<Job>(null);
   const [err, setErr] = useState<string | null>(null);
   const hasAudio = loops.some((l) => l.audio);
@@ -30,13 +35,13 @@ export function ExportPanel({ loops }: ExportPanelProps) {
 
   const exportSvg = () =>
     run('svg', async () => {
-      const svg = svgFromLoops(loops);
+      const svg = svgFromLoops(loops, { style, fMin, fMax });
       downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'soundrewave.svg');
     });
 
   const exportPng = () =>
     run('png', async () => {
-      const svg = svgFromLoops(loops);
+      const svg = svgFromLoops(loops, { style, fMin, fMax });
       downloadBlob(await pngFromSvg(svg, 2), 'soundrewave.png');
     });
 
