@@ -13,6 +13,36 @@ function mixGain(n: number): number {
   return n <= 1 ? 1 : 1 / Math.sqrt(n);
 }
 
+/** Peak absolute sample across all channels. */
+export function peakOf(buffer: AudioBuffer): number {
+  let peak = 0;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < data.length; i++) {
+      const a = Math.abs(data[i]);
+      if (a > peak) peak = a;
+    }
+  }
+  return peak;
+}
+
+/**
+ * Scale a rendered buffer up to `target` peak (near full scale). Mic takes are
+ * often very quiet (-40 dBFS+); this makes exports and playback usefully loud.
+ * Capped makeup gain avoids amplifying near-silence into pure noise.
+ */
+export function normalize(buffer: AudioBuffer, target = 0.9, maxGain = 250): AudioBuffer {
+  const peak = peakOf(buffer);
+  if (peak <= 0) return buffer;
+  const gain = Math.min(maxGain, target / peak);
+  if (gain <= 1.0001) return buffer;
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < data.length; i++) data[i] *= gain;
+  }
+  return buffer;
+}
+
 /** All takes starting together (overlapped), rendered to one buffer. */
 export async function mixOverlapped(loops: Loop[]): Promise<AudioBuffer> {
   const items = loopsWithAudio(loops);
@@ -29,7 +59,7 @@ export async function mixOverlapped(loops: Loop[]): Promise<AudioBuffer> {
     src.connect(gain);
     src.start(0);
   }
-  return ctx.startRendering();
+  return normalize(await ctx.startRendering());
 }
 
 /** All takes one after another (sequential), rendered to one long buffer. */
@@ -47,5 +77,5 @@ export async function mixSequential(loops: Loop[]): Promise<AudioBuffer> {
     src.start(t);
     t += audio.duration;
   }
-  return ctx.startRendering();
+  return normalize(await ctx.startRendering());
 }

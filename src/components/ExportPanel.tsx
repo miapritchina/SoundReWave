@@ -8,7 +8,8 @@ export interface ExportPanelProps {
   loops: Loop[];
 }
 
-type Job = 'svg' | 'png' | 'wav-overlap' | 'wav-seq' | null;
+type AudioJob = 'wav-overlap' | 'wav-seq' | 'mp3-overlap' | 'mp3-seq';
+type Job = 'svg' | 'png' | AudioJob | null;
 
 export function ExportPanel({ loops }: ExportPanelProps) {
   const [busy, setBusy] = useState<Job>(null);
@@ -39,14 +40,15 @@ export function ExportPanel({ loops }: ExportPanelProps) {
       downloadBlob(await pngFromSvg(svg, 2), 'soundrewave.png');
     });
 
-  const exportWav = (kind: 'wav-overlap' | 'wav-seq') =>
+  const exportAudio = (kind: AudioJob) =>
     run(kind, async () => {
-      const buffer =
-        kind === 'wav-overlap' ? await mixOverlapped(loops) : await mixSequential(loops);
-      downloadBlob(
-        encodeWav(buffer),
-        kind === 'wav-overlap' ? 'soundrewave-overlapped.wav' : 'soundrewave-sequential.wav',
-      );
+      const overlapped = kind === 'wav-overlap' || kind === 'mp3-overlap';
+      const buffer = overlapped ? await mixOverlapped(loops) : await mixSequential(loops);
+      const arrangement = overlapped ? 'overlapped' : 'sequential';
+      const mp3 = kind === 'mp3-overlap' || kind === 'mp3-seq';
+      // Lazy-load the MP3 encoder (~60 KB) only when actually exporting MP3.
+      const blob = mp3 ? (await import('../lib/mp3')).encodeMp3(buffer) : encodeWav(buffer);
+      downloadBlob(blob, `soundrewave-${arrangement}.${mp3 ? 'mp3' : 'wav'}`);
     });
 
   const btn =
@@ -61,11 +63,17 @@ export function ExportPanel({ loops }: ExportPanelProps) {
         <button className={btn} disabled={busy !== null} onClick={exportPng}>
           {busy === 'png' ? 'Exporting…' : 'Art · PNG'}
         </button>
-        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportWav('wav-overlap')}>
-          {busy === 'wav-overlap' ? 'Rendering…' : 'Audio · Overlapped WAV'}
+        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportAudio('wav-overlap')}>
+          {busy === 'wav-overlap' ? 'Rendering…' : 'Overlapped · WAV'}
         </button>
-        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportWav('wav-seq')}>
-          {busy === 'wav-seq' ? 'Rendering…' : 'Audio · Sequential WAV'}
+        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportAudio('wav-seq')}>
+          {busy === 'wav-seq' ? 'Rendering…' : 'Sequential · WAV'}
+        </button>
+        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportAudio('mp3-overlap')}>
+          {busy === 'mp3-overlap' ? 'Encoding…' : 'Overlapped · MP3'}
+        </button>
+        <button className={btn} disabled={busy !== null || !hasAudio} onClick={() => exportAudio('mp3-seq')}>
+          {busy === 'mp3-seq' ? 'Encoding…' : 'Sequential · MP3'}
         </button>
       </div>
       {!hasAudio && <p className="text-[11px] text-white/40">Audio export needs recorded takes.</p>}
