@@ -55,13 +55,10 @@ export const Bloom: Story = {
   args: {
     style: 'bloom',
     playhead: true,
-    // Overlapping ranges so the screen blend accumulates into a bright glow.
-    committedLoops: [
-      demoLoop(0, [N('A3'), N('C4'), N('B3'), N('A3')]),
-      demoLoop(1, [N('B3'), N('C4'), N('A3'), N('B3')]),
-      demoLoop(2, [N('A3'), N('B3'), N('C4'), N('A3')]),
-      demoLoop(3, [N('C4'), N('B3'), N('A3'), N('B3')]),
-    ],
-    activePoints: demoPoints(4, [N('B3'), N('C4'), N('A3'), N('B3')]),
+    // Many overlapping takes so the screen blend stacks toward a white-hot core.
+    committedLoops: Array.from({ length: 14 }, (_, i) =>
+      demoLoop(i, [N('A3'), N('C4'), N('B3'), N('A3')], i),
+    ),
+    activePoints: demoPoints(99, [N('B3'), N('C4'), N('A3'), N('B3')]),
   },
 };

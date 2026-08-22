@@ -3,7 +3,7 @@ import { toSegments, type Segment } from './contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from './scales';
 import type { StyleMode } from './settings';
 
-const BLOOM_LAYER = '#ff8a1f';
+const BLOOM_LAYER = '#ff9a4d';
 
 export interface SvgOptions {
   width?: number;
@@ -76,7 +76,7 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
   const paths = loops
     .map((loop) => {
       const stroke = bloom ? BLOOM_LAYER : loop.color;
-      const opacity = bloom ? 0.36 : 0.85;
+      const opacity = bloom ? 0.4 : 0.85;
       const blend = bloom ? ' style="mix-blend-mode:screen"' : '';
       const w = bloom ? 3 : 2.5;
       return toSegments(loop.points, maxBridgeMs)
