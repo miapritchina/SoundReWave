@@ -121,8 +121,10 @@ export function PitchGraph({
               x={(d) => xScale(d.tMs)}
               y={(d) => yScale(d.freq)}
               stroke={loop.color}
-              strokeOpacity={0.32}
-              strokeWidth={1.75}
+              strokeOpacity={0.72}
+              strokeWidth={2.25}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               curve={curveCatmullRom}
               fill="none"
             />
@@ -137,8 +139,10 @@ export function PitchGraph({
             x={(d) => xScale(d.tMs)}
             y={(d) => yScale(d.freq)}
             stroke={activeColor}
-            strokeOpacity={0.95}
-            strokeWidth={2.5}
+            strokeOpacity={0.98}
+            strokeWidth={2.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
             curve={curveCatmullRom}
             fill="none"
           />
