@@ -27,6 +27,8 @@ export interface PitchGraphProps {
   playheadTMs?: number | null;
   /** Recording session: keep the fixed window even between takes (no fit-all). */
   recording?: boolean;
+  /** Finished: rebalance additive styles so the densest overlap reads as white. */
+  finished?: boolean;
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
@@ -37,12 +39,24 @@ const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 44 };
 // bright stacks, blowing out to white in the densest (median) core. The blue
 // headroom lets the sum reach true white, not just saturated orange.
 const BLOOM_LAYER = '#ff9a55';
-const BLOOM_LAYER_OPACITY = 0.22;
 const BLOOM_ACTIVE = '#fff0c8';
 
 // Pitch → hue rainbow for Aurora (every pitch its own color). Top of the plot
 // is the highest pitch; stops run high→low.
 const AURORA_STOPS = [0, 30, 55, 110, 175, 215, 270]; // hues, high pitch → low
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Per-layer stroke opacity for the additive (plus-lighter) styles. While
+ * recording, keep it low so single lines stay faint. On finish, scale it to the
+ * number of takes (`target / N`) so the *most-overlapped* region sums to pure
+ * white while sparse areas keep their color — a light auto-exposure.
+ */
+function additiveOpacity(base: number, finished: boolean, n: number, target: number): number {
+  if (!finished) return base;
+  return clamp(target / Math.max(1, n), 0.1, 0.55);
+}
 
 /**
  * Layered pitch-contour graph. Pure/declarative visx (SVG) so the same
@@ -63,6 +77,7 @@ export function PitchGraph({
   playhead = false,
   playheadTMs = null,
   recording = false,
+  finished = false,
   padding = DEFAULT_PAD,
 }: PitchGraphProps) {
   const innerW = Math.max(0, width - padding.left - padding.right);
@@ -70,6 +85,12 @@ export function PitchGraph({
   const clipId = useId();
   const bloom = style === 'bloom';
   const aurora = style === 'aurora';
+  const additive = bloom || aurora;
+  const layerOpacity = bloom
+    ? additiveOpacity(0.22, finished, committedLoops.length, 2.4)
+    : aurora
+      ? additiveOpacity(0.55, finished, committedLoops.length, 2.0)
+      : 0.72;
 
   const lastActive = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
 
@@ -168,11 +189,11 @@ export function PitchGraph({
                 x={(d) => xScale(d.tMs)}
                 y={(d) => yScale(d.freq)}
                 stroke={aurora ? `url(#pitch-${clipId})` : bloom ? BLOOM_LAYER : loop.color}
-                strokeOpacity={aurora ? 0.62 : bloom ? BLOOM_LAYER_OPACITY : 0.72}
+                strokeOpacity={layerOpacity}
                 strokeWidth={aurora ? 2.5 : bloom ? 3 : 2.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={bloom ? { mixBlendMode: 'plus-lighter' } : undefined}
+                style={additive ? { mixBlendMode: 'plus-lighter' } : undefined}
                 curve={curveCatmullRom}
                 fill="none"
               />

@@ -63,7 +63,7 @@ export default function App() {
 
   const lastActiveMs = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
   const remainingSec = Math.max(0, Math.ceil((settings.loopLengthSec * 1000 - lastActiveMs) / 1000));
-  const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Layer';
+  const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Wave';
 
   const range = useMemo(
     () => autoRange(committed, settings.octaves, activePoints),
@@ -84,7 +84,7 @@ export default function App() {
         </h1>
         <div className="flex items-center gap-3">
           <span className="font-mono text-[11px] text-white/40">
-            {committed.length} layer{committed.length === 1 ? '' : 's'}
+            {committed.length} wave{committed.length === 1 ? '' : 's'}
             {finished && ' · finished'}
           </span>
           <button
@@ -120,6 +120,7 @@ export default function App() {
             playhead={settings.playhead}
             playheadTMs={looper.isPlaying ? looper.playbackMs : undefined}
             recording={recording}
+            finished={finished}
           />
         )}
         {onTarget && (
@@ -151,11 +152,11 @@ export default function App() {
                     📈 Your pitch draws as a live line. Hit <b>A3</b> for a chime.
                   </li>
                   <li>
-                    <b className="text-accent">New Layer</b> stacks another take over the last one.
+                    <b className="text-accent">New Wave</b> stacks another take over the last one.
                   </li>
                   <li>
                     <b className="text-accent">Finish</b> plays every layer together — then export the
-                    audio (WAV/MP3) or the artwork (SVG/PNG).
+                    audio (MP3) or the artwork (SVG/PNG).
                   </li>
                   <li>
                     <b className="text-accent">⚙ Settings</b> — visual styles, pitch range, loop mode,
@@ -202,7 +203,7 @@ export default function App() {
           )}
           {looper.armed && (
             <p className="text-center text-[11px] text-white/55">
-              Take saved — <span className="text-accent">New Layer</span> to record the next {settings.loopLengthSec}s loop.
+              Take saved — <span className="text-accent">New Wave</span> to record the next {settings.loopLengthSec}s loop.
             </p>
           )}
           {totalRecordedSec > 180 && (
