@@ -25,6 +25,8 @@ export interface PitchGraphProps {
   playhead?: boolean;
   /** Playhead time (ms). Falls back to the active take's current time. */
   playheadTMs?: number | null;
+  /** Recording session: keep the fixed window even between takes (no fit-all). */
+  recording?: boolean;
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
@@ -60,6 +62,7 @@ export function PitchGraph({
   style = 'layers',
   playhead = false,
   playheadTMs = null,
+  recording = false,
   padding = DEFAULT_PAD,
 }: PitchGraphProps) {
   const innerW = Math.max(0, width - padding.left - padding.right);
@@ -73,7 +76,10 @@ export function PitchGraph({
   // Fixed time-scale window that scrolls left once the take runs past it (no
   // squishing). When finished (no active take), fit the whole session.
   const [domainStart, domainEnd] = useMemo(() => {
-    if (lastActive > 0) {
+    // While recording keep a stable fixed window (even between takes, when the
+    // active take is momentarily empty) so the scale never flips to fit-all and
+    // jumps. Once the take runs past the window it scrolls left.
+    if (recording) {
       const end = Math.max(windowMs, lastActive);
       return [end - windowMs, end];
     }
@@ -81,7 +87,7 @@ export function PitchGraph({
     let max = 0;
     for (const l of committedLoops) max = Math.max(max, l.durationMs);
     return [0, max > 0 ? max : windowMs];
-  }, [windowMs, committedLoops, lastActive]);
+  }, [windowMs, committedLoops, lastActive, recording]);
 
   const xScale = useMemo(
     () => scaleLinear<number>({ domain: [domainStart, domainEnd], range: [0, innerW] }),
