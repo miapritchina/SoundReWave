@@ -19,12 +19,16 @@ export interface UseLooperOptions {
   loopMode?: 'manual' | 'fixed';
   /** Fixed-loop length in ms. */
   loopLengthMs?: number;
-  /** Gate silence out of the recorded audio (noise gate on the record path). */
+  /**
+   * Skip silence: while silent, pause the recorder AND freeze the take clock,
+   * so voiced parts sit back-to-back (no dead time in the graph or the audio).
+   */
   gateSilence?: boolean;
   onHit?: (freq: number) => void;
 }
 
-/** Keep the recording gate open this long after the last voiced frame. */
+/** Stay "active" this long after the last voiced frame before skipping silence
+ * (a short grace so consonant gaps inside a word aren't cut). */
 const GATE_HOLD_MS = 220;
 
 /**
@@ -114,8 +118,8 @@ export function useLooper(options: UseLooperOptions = {}) {
   const loopModeRef = useRef(loopMode);
   const loopLengthMsRef = useRef(loopLengthMs);
   const gateSilenceRef = useRef(gateSilence);
-  const gateGainRef = useRef<GainNode | null>(null);
-  const recordStreamRef = useRef<MediaStream | null>(null);
+  const silencePausedRef = useRef(false);
+  const silenceEnterRef = useRef(0);
   gateSilenceRef.current = gateSilence;
   const armedRef = useRef(false);
   const armingRef = useRef(false);
@@ -162,6 +166,7 @@ export function useLooper(options: UseLooperOptions = {}) {
       autoStoppingRef.current = false;
       armingRef.current = false;
       pausedRef.current = false;
+      silencePausedRef.current = false;
       setActivePoints([]);
       setPaused(false);
 
@@ -177,12 +182,34 @@ export function useLooper(options: UseLooperOptions = {}) {
         for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i];
         const rms = Math.sqrt(sumSq / input.length);
         const [freq, clarity] = detector.findPitch(input, ctx.sampleRate);
-        const tMs = now - startTsRef.current;
 
         const gates = gatesFor(sensitivityRef.current);
         // Meter: scale post-gain RMS to a readable 0..1 (voice sits ~0.05–0.3).
         setInputLevel(Math.min(1, rms * 4));
-        let voiced = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+        const voicedRaw = clarity >= gates.clarity && rms >= gates.rms && freq > 0;
+        const rec = recorderRef.current;
+
+        // Skip-silence: while silent, pause the recorder AND freeze the take
+        // clock, so voiced parts sit back-to-back with no dead time in the graph
+        // or the recording. On the next voiced frame we shift the clock past the
+        // skipped span and resume recording.
+        if (silencePausedRef.current) {
+          if (voicedRaw) {
+            startTsRef.current += now - silenceEnterRef.current;
+            if (rec && rec.state === 'paused') {
+              try {
+                rec.resume();
+              } catch {
+                /* ignore */
+              }
+            }
+            silencePausedRef.current = false;
+          } else {
+            return; // still silent — no time advances, no points added
+          }
+        }
+
+        const tMs = now - startTsRef.current;
 
         // Pitch-continuity guard: kill the downward plunges at phrase edges.
         // Autocorrelation often reports a sub-harmonic (~an octave too low), and
@@ -190,6 +217,7 @@ export function useLooper(options: UseLooperOptions = {}) {
         // octave-halving errors relative to the recent pitch, and drop any
         // remaining implausible downward leap to a clean pen-up (gap) instead of
         // drawing a line to the floor.
+        let voiced = voicedRaw;
         let f = freq;
         if (voiced) {
           const prev = lastVoicedRef.current;
@@ -217,11 +245,24 @@ export function useLooper(options: UseLooperOptions = {}) {
         }
         setActivePoints(pointsRef.current);
 
-        // Noise gate on the record path: open while voiced (+ a short hold so
-        // consonant gaps within a word aren't cut), closed during real silence.
-        if (gateGainRef.current) {
-          const open = !gateSilenceRef.current || now - lastVoiceWallRef.current < GATE_HOLD_MS;
-          gateGainRef.current.gain.setTargetAtTime(open ? 1 : 0, ctx.currentTime, 0.015);
+        // Enter skip-silence once we've been quiet past the hold (a short grace
+        // so brief consonant gaps inside a word don't trigger it). Pauses the
+        // recorder and marks the clock to freeze from `now`.
+        if (
+          gateSilenceRef.current &&
+          !silencePausedRef.current &&
+          !voicedRaw &&
+          now - lastVoiceWallRef.current > GATE_HOLD_MS
+        ) {
+          silencePausedRef.current = true;
+          silenceEnterRef.current = now;
+          if (rec && rec.state === 'recording') {
+            try {
+              rec.pause();
+            } catch {
+              /* ignore */
+            }
+          }
         }
 
         // Fixed mode: auto-stop the take at the loop length and arm for the next.
@@ -253,7 +294,7 @@ export function useLooper(options: UseLooperOptions = {}) {
 
   // --- recording ---
   const startRecorder = useCallback(() => {
-    const stream = recordStreamRef.current ?? streamRef.current;
+    const stream = streamRef.current;
     if (!stream) return;
     chunksRef.current = [];
     const rec = new MediaRecorder(stream, { mimeType: pickMime() });
@@ -335,16 +376,6 @@ export function useLooper(options: UseLooperOptions = {}) {
       inputGainRef.current = inputGain;
       source.connect(inputGain).connect(analyser);
 
-      // Recording path: source → gate → destination → MediaRecorder. The gate
-      // ducks to 0 during silence when gateSilence is on, so quiet/ambient
-      // stretches aren't recorded; it stays at 1 otherwise (records everything).
-      const gateGain = ctx.createGain();
-      gateGain.gain.value = 1;
-      const dest = ctx.createMediaStreamDestination();
-      source.connect(gateGain).connect(dest);
-      gateGainRef.current = gateGain;
-      recordStreamRef.current = dest.stream;
-
       setCommitted([]);
       setArmed(false);
       armedRef.current = false;
@@ -421,8 +452,6 @@ export function useLooper(options: UseLooperOptions = {}) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     inputGainRef.current = null;
-    gateGainRef.current = null;
-    recordStreamRef.current = null;
     armedRef.current = false;
     pausedRef.current = false;
     setArmed(false);
@@ -555,8 +584,6 @@ export function useLooper(options: UseLooperOptions = {}) {
     ctxRef.current = null;
     pointsRef.current = [];
     inputGainRef.current = null;
-    gateGainRef.current = null;
-    recordStreamRef.current = null;
     armedRef.current = false;
     pausedRef.current = false;
     setArmed(false);
