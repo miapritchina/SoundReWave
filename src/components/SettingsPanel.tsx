@@ -72,6 +72,7 @@ export function SettingsPanel({
         label="Range"
         value={settings.octaves}
         options={[
+          { value: 1, label: '1 oct' },
           { value: 2, label: '2 oct' },
           { value: 3, label: '3 oct' },
           { value: 4, label: '4 oct' },
@@ -131,6 +132,22 @@ export function SettingsPanel({
           <span
             className={`block h-5 w-5 rounded-full bg-white transition-transform ${
               settings.playhead ? 'translate-x-5' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-white/55">Skip silence</span>
+        <button
+          onClick={() => onChange({ gateSilence: !settings.gateSilence })}
+          className={`h-6 w-11 rounded-full transition-colors ${settings.gateSilence ? 'bg-accent' : 'bg-white/15'}`}
+          aria-pressed={settings.gateSilence}
+          aria-label="Toggle skip silence"
+        >
+          <span
+            className={`block h-5 w-5 rounded-full bg-white transition-transform ${
+              settings.gateSilence ? 'translate-x-5' : 'translate-x-0.5'
             }`}
           />
         </button>

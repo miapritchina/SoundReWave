@@ -17,6 +17,8 @@ export interface VisualSettings {
   loopLengthSec: number;
   /** Mic detection sensitivity 0..1 (persisted across reloads). */
   sensitivity: number;
+  /** When true, silence/unvoiced input is gated out of the recording too. */
+  gateSilence: boolean;
 }
 
 export const DEFAULT_SETTINGS: VisualSettings = {
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: VisualSettings = {
   loopMode: 'manual',
   loopLengthSec: 6,
   sensitivity: 0.65,
+  gateSilence: true,
 };
 
 /** Visual-only keys — presets carry these; loop mode/sensitivity are separate. */
