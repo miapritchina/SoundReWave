@@ -23,7 +23,7 @@ together and export the mix and the artwork.
 | 1 — Live pitch draw + note readout + layering + A3 target | ✅ |
 | 2 — Per-loop audio recording (MediaRecorder) | ✅ |
 | 3 — Overlapped play-all + A3 tone | ✅ |
-| 4 — Export (SVG / PNG / overlapped + sequential WAV) | ✅ |
+| 4 — Export (SVG / PNG / overlapped + sequential MP3) | ✅ |
 | 5 — Mobile polish (iOS Safari), CI + GitHub Pages deploy | ✅ |
 
 ## Develop
