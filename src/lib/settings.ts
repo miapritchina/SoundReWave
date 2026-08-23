@@ -17,7 +17,8 @@ export interface VisualSettings {
   loopLengthSec: number;
   /** Mic detection sensitivity 0..1 (persisted across reloads). */
   sensitivity: number;
-  /** When true, silence/unvoiced input is gated out of the recording too. */
+  /** When true, silence is skipped entirely — not drawn, not recorded, and it
+   * doesn't advance time (voiced parts sit back-to-back). */
   gateSilence: boolean;
 }
 
