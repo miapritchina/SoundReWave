@@ -119,6 +119,7 @@ export default function App() {
             style={settings.style}
             playhead={settings.playhead}
             playheadTMs={looper.isPlaying ? looper.playbackMs : undefined}
+            recording={recording}
           />
         )}
         {onTarget && (
