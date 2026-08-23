@@ -84,11 +84,16 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
       '</linearGradient></defs>'
     : '';
 
+  // Export is the finished artwork: scale additive opacity to the take count so
+  // the densest overlap sums to white (matches the on-screen finished view).
+  const additive = bloom || aurora;
+  const adaptive = (target: number) => Math.max(0.1, Math.min(0.55, target / Math.max(1, loops.length)));
+
   const paths = loops
     .map((loop) => {
       const stroke = aurora ? 'url(#pitch)' : bloom ? BLOOM_LAYER : loop.color;
-      const opacity = aurora ? 0.62 : bloom ? 0.22 : 0.85;
-      const blend = bloom ? ' style="mix-blend-mode:plus-lighter"' : '';
+      const opacity = aurora ? adaptive(2.0) : bloom ? adaptive(2.4) : 0.85;
+      const blend = additive ? ' style="mix-blend-mode:plus-lighter"' : '';
       const w = bloom ? 3 : 2.5;
       return toSegments(loop.points, maxBridgeMs)
         .map(

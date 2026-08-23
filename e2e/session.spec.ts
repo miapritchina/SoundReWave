@@ -7,9 +7,9 @@ test('full session: record layers, finish, play, and export', async ({ page }) =
 
   // Record two layers.
   await page.waitForTimeout(900);
-  await page.getByRole('button', { name: 'New Layer' }).click();
+  await page.getByRole('button', { name: 'New Wave' }).click();
   await page.waitForTimeout(900);
-  await expect(page.getByText(/^1 layer/)).toBeVisible();
+  await expect(page.getByText(/^1 wave/)).toBeVisible();
 
   // Finish the session.
   await page.getByRole('button', { name: 'Finish' }).click();

@@ -141,12 +141,13 @@ export function useLooper(options: UseLooperOptions = {}) {
     if (inputGainRef.current) inputGainRef.current.gain.value = gatesFor(v).gain;
   }, []);
 
-  // iOS Safari suspends the AudioContext when the tab is backgrounded; resume it
-  // when the app becomes visible again so recording/playback keep working.
+  // iOS Safari suspends/interrupts the AudioContext when the tab is
+  // backgrounded; resume it whenever we become visible again (any non-running
+  // state) so recording/playback keep working.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && ctxRef.current?.state === 'suspended') {
-        void ctxRef.current.resume();
+      if (document.visibilityState === 'visible' && ctxRef.current && ctxRef.current.state !== 'running') {
+        void ctxRef.current.resume().catch(() => {});
       }
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -464,13 +465,34 @@ export function useLooper(options: UseLooperOptions = {}) {
   autoFinishRef.current = finish;
 
   const playAll = useCallback(async () => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
     // iOS: route to the "playback" session so the hardware mute switch doesn't
-    // silence Web Audio, and wait for the context to actually resume before
-    // scheduling sources (a suspended context plays nothing).
+    // silence Web Audio.
     setAudioSession('playback');
-    await ctx.resume();
+    // After backgrounding, iOS may leave the context suspended/interrupted and
+    // resume() alone doesn't recover it. Try to resume; if it won't run, rebuild
+    // a fresh context (decoded AudioBuffers are context-independent, so playback
+    // still works). This is what fixes "switch away and back → no sound".
+    let ctx = ctxRef.current;
+    if (ctx && ctx.state !== 'running') {
+      try {
+        await ctx.resume();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!ctx || ctx.state !== 'running') {
+      try {
+        await ctx?.close();
+      } catch {
+        /* ignore */
+      }
+      const AudioCtx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new AudioCtx();
+      await ctx.resume();
+      ctxRef.current = ctx;
+    }
     const withAudio = committed.filter((l) => l.audio);
     if (!withAudio.length) {
       setError('No recorded audio to play back — the take may not have captured. Try recording again.');

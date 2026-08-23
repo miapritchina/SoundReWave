@@ -64,6 +64,17 @@ export const Aurora: Story = {
   },
 };
 
+export const AuroraFinished: Story = {
+  name: 'Aurora finished (overlap → white)',
+  args: {
+    style: 'aurora',
+    finished: true,
+    committedLoops: Array.from({ length: 10 }, (_, i) =>
+      demoLoop(i, [N('A3'), N('C4'), N('E4'), N('C4')], i),
+    ),
+  },
+};
+
 export const Bloom: Story = {
   name: 'Bloom style (word overlap)',
   args: {
