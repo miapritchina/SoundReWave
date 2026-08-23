@@ -40,6 +40,7 @@ export default function App() {
     loopMode: settings.loopMode,
     loopLengthMs: settings.loopLengthSec * 1000,
     sensitivity: settings.sensitivity,
+    gateSilence: settings.gateSilence,
   });
   looperRef.current = looper;
 

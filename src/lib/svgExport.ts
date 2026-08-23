@@ -1,10 +1,10 @@
 import type { Loop } from './contour';
 import { toSegments, type Segment } from './contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from './scales';
-import { hueShift } from './palette';
 import type { StyleMode } from './settings';
 
-const BLOOM_LAYER = '#ff9a4d';
+const BLOOM_LAYER = '#ff9a55';
+const AURORA_STOPS = [0, 30, 55, 110, 175, 215, 270]; // hues, high pitch → low
 
 export interface SvgOptions {
   width?: number;
@@ -77,21 +77,18 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
   const aurora = opts.style === 'aurora';
 
   const defs = aurora
-    ? '<defs>' +
-      loops
-        .map(
-          (loop, i) =>
-            `<linearGradient id="g${i}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="${loop.color}"/><stop offset="100%" stop-color="${hueShift(loop.color, 55)}"/></linearGradient>`,
-        )
-        .join('') +
-      '</defs>'
+    ? `<defs><linearGradient id="pitch" gradientUnits="userSpaceOnUse" x1="0" y1="${pad.top}" x2="0" y2="${pad.top + innerH}">` +
+      AURORA_STOPS.map(
+        (h, i) => `<stop offset="${(i / (AURORA_STOPS.length - 1)) * 100}%" stop-color="hsl(${h} 85% 60%)"/>`,
+      ).join('') +
+      '</linearGradient></defs>'
     : '';
 
   const paths = loops
-    .map((loop, i) => {
-      const stroke = aurora ? `url(#g${i})` : bloom ? BLOOM_LAYER : loop.color;
-      const opacity = aurora ? 0.6 : bloom ? 0.4 : 0.85;
-      const blend = bloom ? ' style="mix-blend-mode:screen"' : '';
+    .map((loop) => {
+      const stroke = aurora ? 'url(#pitch)' : bloom ? BLOOM_LAYER : loop.color;
+      const opacity = aurora ? 0.62 : bloom ? 0.22 : 0.85;
+      const blend = bloom ? ' style="mix-blend-mode:plus-lighter"' : '';
       const w = bloom ? 3 : 2.5;
       return toSegments(loop.points, maxBridgeMs)
         .map(

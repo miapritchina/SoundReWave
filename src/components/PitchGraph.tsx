@@ -6,7 +6,6 @@ import { curveCatmullRom } from '@visx/curve';
 import type { Loop, PitchPoint } from '../lib/contour';
 import { toSegments } from '../lib/contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from '../lib/scales';
-import { hueShift } from '../lib/palette';
 import type { StyleMode } from '../lib/settings';
 
 export interface PitchGraphProps {
@@ -31,11 +30,17 @@ export interface PitchGraphProps {
 
 const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 44 };
 
-// Bloom palette: warm, semi-transparent, screen-blended so overlaps brighten.
-// The layer color keeps real blue headroom so stacked takes screen up toward
-// WHITE (a hot core) where many overlap, not just saturated orange.
-const BLOOM_LAYER = '#ff9a4d';
+// Bloom palette: warm, very transparent per layer, additively blended
+// (plus-lighter) so light *sums* where takes overlap — faint single lines,
+// bright stacks, blowing out to white in the densest (median) core. The blue
+// headroom lets the sum reach true white, not just saturated orange.
+const BLOOM_LAYER = '#ff9a55';
+const BLOOM_LAYER_OPACITY = 0.22;
 const BLOOM_ACTIVE = '#fff0c8';
+
+// Pitch → hue rainbow for Aurora (every pitch its own color). Top of the plot
+// is the highest pitch; stops run high→low.
+const AURORA_STOPS = [0, 30, 55, 110, 175, 215, 270]; // hues, high pitch → low
 
 /**
  * Layered pitch-contour graph. Pure/declarative visx (SVG) so the same
@@ -134,20 +139,14 @@ export function PitchGraph({
           );
         })}
 
-        {/* Aurora: each take is its own left→right hue gradient. */}
+        {/* Aurora: one vertical pitch→hue gradient shared by every line, so
+            each pitch has its own color (a C4 is the same hue in any take). */}
         {aurora && (
-          <defs>
-            {committedSegments.map((loop, li) => (
-              <linearGradient key={loop.id} id={`g-${clipId}-${li}`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={loop.color} />
-                <stop offset="100%" stopColor={hueShift(loop.color, 55)} />
-              </linearGradient>
+          <linearGradient id={`pitch-${clipId}`} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={innerH}>
+            {AURORA_STOPS.map((h, i) => (
+              <stop key={i} offset={`${(i / (AURORA_STOPS.length - 1)) * 100}%`} stopColor={`hsl(${h} 85% 60%)`} />
             ))}
-            <linearGradient id={`g-${clipId}-active`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={activeColor} />
-              <stop offset="100%" stopColor={hueShift(activeColor, 55)} />
-            </linearGradient>
-          </defs>
+          </linearGradient>
         )}
 
         <clipPath id={clipId}>
@@ -155,19 +154,19 @@ export function PitchGraph({
         </clipPath>
         <g clipPath={`url(#${clipId})`}>
           {/* Committed layers */}
-          {committedSegments.map((loop, li) =>
+          {committedSegments.map((loop) =>
             loop.segments.map((seg, i) => (
               <LinePath
                 key={`${loop.id}-${i}`}
                 data={seg}
                 x={(d) => xScale(d.tMs)}
                 y={(d) => yScale(d.freq)}
-                stroke={aurora ? `url(#g-${clipId}-${li})` : bloom ? BLOOM_LAYER : loop.color}
-                strokeOpacity={aurora ? 0.6 : bloom ? 0.4 : 0.72}
+                stroke={aurora ? `url(#pitch-${clipId})` : bloom ? BLOOM_LAYER : loop.color}
+                strokeOpacity={aurora ? 0.62 : bloom ? BLOOM_LAYER_OPACITY : 0.72}
                 strokeWidth={aurora ? 2.5 : bloom ? 3 : 2.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={bloom ? { mixBlendMode: 'screen' } : undefined}
+                style={bloom ? { mixBlendMode: 'plus-lighter' } : undefined}
                 curve={curveCatmullRom}
                 fill="none"
               />
@@ -181,7 +180,7 @@ export function PitchGraph({
               data={seg}
               x={(d) => xScale(d.tMs)}
               y={(d) => yScale(d.freq)}
-              stroke={aurora ? `url(#g-${clipId}-active)` : bloom ? BLOOM_ACTIVE : activeColor}
+              stroke={aurora ? `url(#pitch-${clipId})` : bloom ? BLOOM_ACTIVE : activeColor}
               strokeOpacity={0.98}
               strokeWidth={bloom ? 3.25 : 2.75}
               strokeLinecap="round"
