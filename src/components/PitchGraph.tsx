@@ -27,8 +27,6 @@ export interface PitchGraphProps {
   playheadTMs?: number | null;
   /** Recording session: keep the fixed window even between takes (no fit-all). */
   recording?: boolean;
-  /** Finished: rebalance additive styles so the densest overlap reads as white. */
-  finished?: boolean;
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
@@ -48,13 +46,14 @@ const AURORA_STOPS = [0, 30, 55, 110, 175, 215, 270]; // hues, high pitch → lo
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
- * Per-layer stroke opacity for the additive (plus-lighter) styles. While
- * recording, keep it low so single lines stay faint. On finish, scale it to the
- * number of takes (`target / N`) so the *most-overlapped* region sums to pure
- * white while sparse areas keep their color — a light auto-exposure.
+ * Per-layer stroke opacity for the additive (plus-lighter) styles. Auto-exposure:
+ * scale each layer's opacity to the number of committed takes (`target / N`) so
+ * the *most-overlapped* region sums toward pure white while sparse areas keep
+ * their color. This is recomputed on every render, so as each layer finishes and
+ * `n` grows the whole stack re-exposes live — the accumulation builds up while
+ * recording, not only on Finish. Matches the export's `adaptive()`.
  */
-function additiveOpacity(base: number, finished: boolean, n: number, target: number): number {
-  if (!finished) return base;
+function additiveOpacity(n: number, target: number): number {
   return clamp(target / Math.max(1, n), 0.1, 0.55);
 }
 
@@ -127,7 +126,6 @@ export function PitchGraph({
   playhead = false,
   playheadTMs = null,
   recording = false,
-  finished = false,
   padding = DEFAULT_PAD,
 }: PitchGraphProps) {
   const innerW = Math.max(0, width - padding.left - padding.right);
@@ -139,17 +137,16 @@ export function PitchGraph({
   const N = committedLoops.length;
   // Color pass opacity, and a separate WHITE additive pass so stacked takes sum
   // to true white at the densest overlap (a warm/hue base alone can't — its
-  // weak channels never reach 1). White adds equally to all channels.
+  // weak channels never reach 1). White adds equally to all channels. Both
+  // passes auto-expose to the committed-layer count `N`, so the white
+  // accumulation is recalculated on every layer finish (as `N` grows the stack
+  // re-exposes and overlaps read progressively whiter) — matching the export.
   const colorOpacity = bloom
-    ? additiveOpacity(0.22, finished, N, 2.0)
+    ? additiveOpacity(N, 2.0)
     : aurora
-      ? additiveOpacity(0.5, finished, N, 1.8)
+      ? additiveOpacity(N, 1.8)
       : 0.72;
-  const whiteOpacity = additive
-    ? finished
-      ? clamp(1.2 / Math.max(1, N), 0.05, 0.4)
-      : colorOpacity * 0.35
-    : 0;
+  const whiteOpacity = additive ? clamp(1.2 / Math.max(1, N), 0.05, 0.4) : 0;
 
   const lastActive = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
 

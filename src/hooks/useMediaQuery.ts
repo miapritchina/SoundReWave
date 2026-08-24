@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * Subscribe to a CSS media query and re-render on change. SSR-safe (returns
  * false until mounted). Used to switch the recording controls to a rotated
- * right-hand rail in portrait orientation.
+ * right-hand rail in landscape orientation.
  */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
