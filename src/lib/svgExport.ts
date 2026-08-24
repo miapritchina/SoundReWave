@@ -1,5 +1,5 @@
 import type { Loop } from './contour';
-import { toSegments, type Segment } from './contour';
+import { toSegments, voicedTimeExtent, type Segment } from './contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from './scales';
 import type { StyleMode } from './settings';
 
@@ -51,9 +51,17 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
 
-  const domainMs = Math.max(opts.windowMs ?? 0, ...loops.map((l) => l.durationMs), 1);
+  // Fit the *voiced* span to the full width — start at the first note, end at
+  // the last — so the exported artwork trims the silence at the start (and end)
+  // and matches the on-screen finished view instead of leaving dead air.
+  const bounds = voicedTimeExtent(loops);
+  const t0 = bounds ? bounds[0] : 0;
+  const span =
+    bounds && bounds[1] > bounds[0]
+      ? bounds[1] - bounds[0]
+      : Math.max(opts.windowMs ?? 0, ...loops.map((l) => l.durationMs), 1);
 
-  const xOf = (tMs: number) => pad.left + (tMs / domainMs) * innerW;
+  const xOf = (tMs: number) => pad.left + ((tMs - t0) / span) * innerW;
   const logMin = Math.log(fMin);
   const logMax = Math.log(fMax);
   const yOf = (freq: number) => pad.top + innerH - ((Math.log(freq) - logMin) / (logMax - logMin)) * innerH;

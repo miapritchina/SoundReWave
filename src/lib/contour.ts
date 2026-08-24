@@ -52,6 +52,26 @@ export function toSegments(points: PitchPoint[], maxBridgeMs = 180): Segment[] {
   return segments;
 }
 
+/**
+ * Earliest and latest *voiced* time (ms) across every loop's points, or null if
+ * nothing is voiced. Unvoiced frames — the silence before the first note and
+ * after the last — are ignored, so this is the span the singing actually
+ * occupies. Fitting the time axis to it trims shared leading/trailing silence
+ * so the drawing fills the width instead of sitting behind dead air.
+ */
+export function voicedTimeExtent(loops: { points: PitchPoint[] }[]): [number, number] | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const l of loops) {
+    for (const p of l.points) {
+      if (p.freq == null) continue;
+      if (p.tMs < lo) lo = p.tMs;
+      if (p.tMs > hi) hi = p.tMs;
+    }
+  }
+  return lo === Infinity ? null : [lo, hi];
+}
+
 /** Frequency extent across all voiced points, or null if silent. */
 export function freqExtent(points: PitchPoint[]): [number, number] | null {
   let lo = Infinity;
