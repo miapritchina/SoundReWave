@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Build Storybook into dist/storybook so it's served at /SoundReWave/storybook/
+      - run: SB_BASE=/SoundReWave/storybook/ npm run build-storybook -- -o dist/storybook
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

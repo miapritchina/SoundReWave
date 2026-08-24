@@ -69,8 +69,19 @@ export const AuroraFinished: Story = {
   args: {
     style: 'aurora',
     finished: true,
-    committedLoops: Array.from({ length: 10 }, (_, i) =>
+    committedLoops: Array.from({ length: 8 }, (_, i) =>
       demoLoop(i, [N('A3'), N('C4'), N('E4'), N('C4')], i),
+    ),
+  },
+};
+
+export const BloomFinished: Story = {
+  name: 'Bloom finished (overlap → white)',
+  args: {
+    style: 'bloom',
+    finished: true,
+    committedLoops: Array.from({ length: 8 }, (_, i) =>
+      demoLoop(i, [N('A3'), N('C4'), N('B3'), N('C4')], i),
     ),
   },
 };

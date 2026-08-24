@@ -110,15 +110,26 @@ export function SettingsPanel({
       {settings.loopMode === 'fixed' && (
         <Segmented
           label="Length"
-          value={settings.loopLengthSec}
+          value={settings.loopFromFirst ? 'first' : String(settings.loopLengthSec)}
           options={[
-            { value: 4, label: '4s' },
-            { value: 6, label: '6s' },
-            { value: 8, label: '8s' },
-            { value: 12, label: '12s' },
+            { value: 'first', label: '1st' },
+            { value: '1', label: '1s' },
+            { value: '2', label: '2s' },
+            { value: '3', label: '3s' },
+            { value: '4', label: '4s' },
+            { value: '6', label: '6s' },
           ]}
-          onChange={(v) => onChange({ loopLengthSec: v })}
+          onChange={(v) =>
+            v === 'first'
+              ? onChange({ loopFromFirst: true })
+              : onChange({ loopFromFirst: false, loopLengthSec: Number(v) })
+          }
         />
+      )}
+      {settings.loopMode === 'fixed' && settings.loopFromFirst && (
+        <p className="text-[10px] leading-snug text-white/40">
+          Every loop matches your first wave’s length (rounded up to a whole second).
+        </p>
       )}
 
       <div className="flex items-center justify-between">
@@ -186,10 +197,20 @@ export function SettingsPanel({
 
       <div
         data-testid="app-version"
-        className="border-t border-white/10 pt-2 text-center font-mono text-[10px] text-white/35"
+        className="space-y-1 border-t border-white/10 pt-2 text-center font-mono text-[10px] text-white/35"
       >
-        v{VERSION} · {BUILD_SHA}
-        {BUILD_TIME ? ` · ${BUILD_TIME} UTC` : ''}
+        <div>
+          v{VERSION} · {BUILD_SHA}
+          {BUILD_TIME ? ` · ${BUILD_TIME} UTC` : ''}
+        </div>
+        <a
+          href="storybook/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block text-white/45 underline decoration-white/20 underline-offset-2 hover:text-accent"
+        >
+          Component storybook ↗
+        </a>
       </div>
     </div>
   );

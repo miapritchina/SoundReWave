@@ -15,6 +15,8 @@ export interface VisualSettings {
   loopMode: LoopMode;
   /** Fixed-loop length in seconds. */
   loopLengthSec: number;
+  /** Fixed mode: use the first recorded wave's length (ceil to a second). */
+  loopFromFirst: boolean;
   /** Mic detection sensitivity 0..1 (persisted across reloads). */
   sensitivity: number;
   /** When true, silence is skipped entirely — not drawn, not recorded, and it
@@ -28,7 +30,8 @@ export const DEFAULT_SETTINGS: VisualSettings = {
   windowSec: 9,
   playhead: false,
   loopMode: 'manual',
-  loopLengthSec: 6,
+  loopLengthSec: 3,
+  loopFromFirst: false,
   sensitivity: 0.65,
   gateSilence: true,
 };

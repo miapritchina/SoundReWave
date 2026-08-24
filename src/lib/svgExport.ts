@@ -89,18 +89,30 @@ export function svgFromLoops(loops: Loop[], opts: SvgOptions = {}): string {
   const additive = bloom || aurora;
   const adaptive = (target: number) => Math.max(0.1, Math.min(0.55, target / Math.max(1, loops.length)));
 
+  const whiteOpacity = Math.max(0.05, Math.min(0.4, 1.2 / Math.max(1, loops.length)));
   const paths = loops
     .map((loop) => {
       const stroke = aurora ? 'url(#pitch)' : bloom ? BLOOM_LAYER : loop.color;
-      const opacity = aurora ? adaptive(2.0) : bloom ? adaptive(2.4) : 0.85;
+      const opacity = aurora ? adaptive(1.8) : bloom ? adaptive(2.0) : 0.85;
       const blend = additive ? ' style="mix-blend-mode:plus-lighter"' : '';
       const w = bloom ? 3 : 2.5;
-      return toSegments(loop.points, maxBridgeMs)
+      const segs = toSegments(loop.points, maxBridgeMs);
+      const color = segs
         .map(
           (seg) =>
             `<path d="${segToPath(seg)}" fill="none" stroke="${stroke}" stroke-width="${w}" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"${blend}/>`,
         )
         .join('');
+      // White additive pass so overlaps sum to pure white.
+      const white = additive
+        ? segs
+            .map(
+              (seg) =>
+                `<path d="${segToPath(seg)}" fill="none" stroke="#ffffff" stroke-width="${bloom ? 2.4 : 2}" stroke-opacity="${whiteOpacity}" stroke-linecap="round" stroke-linejoin="round" style="mix-blend-mode:plus-lighter"/>`,
+            )
+            .join('')
+        : '';
+      return color + white;
     })
     .join('');
 

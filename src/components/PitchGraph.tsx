@@ -86,11 +86,20 @@ export function PitchGraph({
   const bloom = style === 'bloom';
   const aurora = style === 'aurora';
   const additive = bloom || aurora;
-  const layerOpacity = bloom
-    ? additiveOpacity(0.22, finished, committedLoops.length, 2.4)
+  const N = committedLoops.length;
+  // Color pass opacity, and a separate WHITE additive pass so stacked takes sum
+  // to true white at the densest overlap (a warm/hue base alone can't — its
+  // weak channels never reach 1). White adds equally to all channels.
+  const colorOpacity = bloom
+    ? additiveOpacity(0.22, finished, N, 2.0)
     : aurora
-      ? additiveOpacity(0.55, finished, committedLoops.length, 2.0)
+      ? additiveOpacity(0.5, finished, N, 1.8)
       : 0.72;
+  const whiteOpacity = additive
+    ? finished
+      ? clamp(1.2 / Math.max(1, N), 0.05, 0.4)
+      : colorOpacity * 0.35
+    : 0;
 
   const lastActive = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
 
@@ -180,7 +189,7 @@ export function PitchGraph({
           <rect x={0} y={0} width={innerW} height={innerH} />
         </clipPath>
         <g clipPath={`url(#${clipId})`}>
-          {/* Committed layers */}
+          {/* Committed layers (color pass) */}
           {committedSegments.map((loop) =>
             loop.segments.map((seg, i) => (
               <LinePath
@@ -189,7 +198,7 @@ export function PitchGraph({
                 x={(d) => xScale(d.tMs)}
                 y={(d) => yScale(d.freq)}
                 stroke={aurora ? `url(#pitch-${clipId})` : bloom ? BLOOM_LAYER : loop.color}
-                strokeOpacity={layerOpacity}
+                strokeOpacity={colorOpacity}
                 strokeWidth={aurora ? 2.5 : bloom ? 3 : 2.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -199,6 +208,27 @@ export function PitchGraph({
               />
             )),
           )}
+
+          {/* White additive pass — overlaps sum toward pure white */}
+          {additive &&
+            committedSegments.map((loop) =>
+              loop.segments.map((seg, i) => (
+                <LinePath
+                  key={`w-${loop.id}-${i}`}
+                  data={seg}
+                  x={(d) => xScale(d.tMs)}
+                  y={(d) => yScale(d.freq)}
+                  stroke="#ffffff"
+                  strokeOpacity={whiteOpacity}
+                  strokeWidth={aurora ? 2 : 2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ mixBlendMode: 'plus-lighter' }}
+                  curve={curveCatmullRom}
+                  fill="none"
+                />
+              )),
+            )}
 
           {/* Active take — solid/bright until it's committed */}
           {activeSegments.map((seg, i) => (
