@@ -35,10 +35,25 @@ export default function App() {
     }
   }, []);
 
+  // Effective fixed-loop length: either a set number of seconds, or — when
+  // "use first wave" is on — the first recorded wave's length rounded up to a
+  // whole second. Until that first wave exists it's Infinity, so the opening
+  // take never auto-stops (you tap Stop to set the loop length). We read the
+  // first wave's duration from a ref updated after each render, which trails
+  // `committed` by one render — harmless, since the value only matters once the
+  // first take is already committed and we're recording the next loop.
+  const firstDurRef = useRef(0);
+  const effectiveLoopMs =
+    settings.loopMode === 'fixed' && settings.loopFromFirst
+      ? firstDurRef.current > 0
+        ? Math.ceil(firstDurRef.current / 1000) * 1000
+        : Number.POSITIVE_INFINITY
+      : settings.loopLengthSec * 1000;
+
   const looper = useLooper({
     onHit: handleHit,
     loopMode: settings.loopMode,
-    loopLengthMs: settings.loopLengthSec * 1000,
+    loopLengthMs: effectiveLoopMs,
     sensitivity: settings.sensitivity,
     gateSilence: settings.gateSilence,
   });
@@ -54,15 +69,20 @@ export default function App() {
   );
 
   const { status, committed, activePoints } = looper;
+  firstDurRef.current = committed[0]?.durationMs ?? 0;
   const recording = status === 'recording';
   const finished = status === 'finished';
   const active = recording && !looper.armed;
   const layerIdx = committed.length;
   const fixed = settings.loopMode === 'fixed';
-  const windowMs = (fixed ? settings.loopLengthSec : settings.windowSec) * 1000;
+  const fixedLenFinite = Number.isFinite(effectiveLoopMs);
+  const windowMs = fixed && fixedLenFinite ? effectiveLoopMs : settings.windowSec * 1000;
+  const effectiveLoopSec = fixedLenFinite ? Math.round(effectiveLoopMs / 1000) : null;
 
   const lastActiveMs = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
-  const remainingSec = Math.max(0, Math.ceil((settings.loopLengthSec * 1000 - lastActiveMs) / 1000));
+  const remainingSec = fixedLenFinite
+    ? Math.max(0, Math.ceil((effectiveLoopMs - lastActiveMs) / 1000))
+    : 0;
   const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Wave';
 
   const range = useMemo(
@@ -82,11 +102,14 @@ export default function App() {
         <h1 className="font-display text-xl font-bold tracking-tight">
           Sound<span className="text-glow">Re</span>Wave
         </h1>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[11px] text-white/40">
+        <div className="flex items-center gap-2">
+          <span className="mr-1 font-mono text-[11px] text-white/40">
             {committed.length} wave{committed.length === 1 ? '' : 's'}
             {finished && ' · finished'}
           </span>
+          {committed.length > 0 && (
+            <ExportPanel loops={committed} style={settings.style} fMin={range.fMin} fMax={range.fMax} />
+          )}
           <button
             onClick={() => setShowSettings((v) => !v)}
             className={`rounded-lg border px-2 py-1 text-sm ${
@@ -198,12 +221,16 @@ export default function App() {
           {active && (
             <SensitivityControl value={looper.sensitivity} onChange={handleSensitivity} level={looper.inputLevel} />
           )}
-          {fixed && active && (
+          {fixed && active && fixedLenFinite && (
             <p className="text-center font-mono text-[11px] text-white/50">{remainingSec}s left in loop</p>
+          )}
+          {fixed && active && !fixedLenFinite && (
+            <p className="text-center font-mono text-[11px] text-white/50">Tap Stop to set the loop length</p>
           )}
           {looper.armed && (
             <p className="text-center text-[11px] text-white/55">
-              Take saved — <span className="text-accent">New Wave</span> to record the next {settings.loopLengthSec}s loop.
+              Take saved — <span className="text-accent">New Wave</span> to record the next
+              {effectiveLoopSec ? ` ${effectiveLoopSec}s` : ''} loop.
             </p>
           )}
           {totalRecordedSec > 180 && (
@@ -260,7 +287,9 @@ export default function App() {
               New
             </button>
           </div>
-          <ExportPanel loops={committed} style={settings.style} fMin={range.fMin} fMax={range.fMax} />
+          <p className="text-center text-[11px] text-white/40">
+            Export the audio or artwork with the share icon ↑ in the top bar.
+          </p>
         </div>
       )}
     </div>
