@@ -7,6 +7,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { useLooper } from './hooks/useLooper';
 import { useSettings } from './hooks/useSettings';
 import { useElementSize } from './hooks/useElementSize';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { A3_MIDI, isNoteHit } from './lib/pitch';
 import { layerColor } from './lib/palette';
 import { autoRange } from './lib/scales';
@@ -85,6 +86,12 @@ export default function App() {
     : 0;
   const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Wave';
 
+  // In portrait, the recording action buttons move to a rotated vertical rail
+  // on the right of the graph (the graph itself stays horizontal). The
+  // sensitivity slider and hints stay in the flow below the graph.
+  const portrait = useMediaQuery('(orientation: portrait)');
+  const railControls = portrait && recording;
+
   const range = useMemo(
     () => autoRange(committed, settings.octaves, activePoints),
     [committed, settings.octaves, activePoints],
@@ -123,6 +130,7 @@ export default function App() {
         </div>
       </header>
 
+      <div className="flex min-h-0 flex-1 gap-2">
       <div
         ref={graphRef}
         className={`relative min-h-0 flex-1 overflow-hidden rounded-2xl border bg-panel/60 transition-colors ${
@@ -195,6 +203,35 @@ export default function App() {
         )}
       </div>
 
+        {railControls && (
+          <div className="flex w-14 shrink-0 flex-col gap-2">
+            <button
+              onClick={() => void looper.advance()}
+              className="flex flex-1 items-center justify-center rounded-xl bg-accent font-display text-lg font-semibold text-ink active:scale-[0.98]"
+              aria-label={primaryLabel}
+            >
+              <span className="[writing-mode:vertical-rl]">{primaryLabel}</span>
+            </button>
+            {active && (
+              <button
+                onClick={() => (looper.paused ? looper.resume() : looper.pause())}
+                className="flex items-center justify-center rounded-xl border border-white/20 py-4 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+                aria-label={looper.paused ? 'Resume' : 'Pause'}
+              >
+                <span className="[writing-mode:vertical-rl]">{looper.paused ? 'Resume' : 'Pause'}</span>
+              </button>
+            )}
+            <button
+              onClick={() => void looper.finish()}
+              className="flex items-center justify-center rounded-xl border border-white/20 py-4 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+              aria-label="Finish"
+            >
+              <span className="[writing-mode:vertical-rl]">Finish</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {showSettings && (
         <SettingsPanel
           settings={settings}
@@ -238,28 +275,30 @@ export default function App() {
               ~{Math.round(totalRecordedSec)}s recorded — getting large in memory, consider finishing.
             </p>
           )}
-          <div className="flex gap-3">
-            <button
-              onClick={() => void looper.advance()}
-              className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
-            >
-              {primaryLabel}
-            </button>
-            {active && (
+          {!railControls && (
+            <div className="flex gap-3">
               <button
-                onClick={() => (looper.paused ? looper.resume() : looper.pause())}
+                onClick={() => void looper.advance()}
+                className="flex-1 rounded-xl bg-accent py-4 font-display text-lg font-semibold text-ink active:scale-[0.98]"
+              >
+                {primaryLabel}
+              </button>
+              {active && (
+                <button
+                  onClick={() => (looper.paused ? looper.resume() : looper.pause())}
+                  className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
+                >
+                  {looper.paused ? 'Resume' : 'Pause'}
+                </button>
+              )}
+              <button
+                onClick={() => void looper.finish()}
                 className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
               >
-                {looper.paused ? 'Resume' : 'Pause'}
+                Finish
               </button>
-            )}
-            <button
-              onClick={() => void looper.finish()}
-              className="rounded-xl border border-white/20 px-5 font-display text-base font-semibold text-white/80 active:scale-[0.98]"
-            >
-              Finish
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       ) : (
         // finished

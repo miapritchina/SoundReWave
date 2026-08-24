@@ -1,4 +1,4 @@
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Group } from '@visx/group';
 import { scaleLinear, scaleLog } from '@visx/scale';
 import { LinePath } from '@visx/shape';
@@ -59,6 +59,56 @@ function additiveOpacity(base: number, finished: boolean, n: number, target: num
 }
 
 /**
+ * Ease the x-axis domain toward a target so the graph re-scales *gracefully*.
+ * While a take is actively being recorded we track the scrolling window exactly
+ * (`animate` false → snap, no lag). Between takes and on finish, the target
+ * jumps to "fit everything to full width"; there we ease toward it over a few
+ * frames so the graph softly zooms out instead of snapping.
+ */
+function useEasedDomain(
+  targetStart: number,
+  targetEnd: number,
+  animate: boolean,
+): [number, number] {
+  const [d, setD] = useState<[number, number]>([targetStart, targetEnd]);
+  const cur = useRef<[number, number]>([targetStart, targetEnd]);
+  const target = useRef<[number, number]>([targetStart, targetEnd]);
+  target.current = [targetStart, targetEnd];
+  const raf = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!animate) {
+      if (raf.current != null) {
+        cancelAnimationFrame(raf.current);
+        raf.current = null;
+      }
+      cur.current = [targetStart, targetEnd];
+      setD([targetStart, targetEnd]);
+      return;
+    }
+    const tick = () => {
+      const [tS, tE] = target.current;
+      const [cS, cE] = cur.current;
+      const nS = cS + (tS - cS) * 0.22;
+      const nE = cE + (tE - cE) * 0.22;
+      const done = Math.abs(tS - nS) < 0.5 && Math.abs(tE - nE) < 0.5;
+      cur.current = done ? [tS, tE] : [nS, nE];
+      setD(cur.current);
+      raf.current = done ? null : requestAnimationFrame(tick);
+    };
+    if (raf.current == null) raf.current = requestAnimationFrame(tick);
+    return () => {
+      if (raf.current != null) {
+        cancelAnimationFrame(raf.current);
+        raf.current = null;
+      }
+    };
+  }, [targetStart, targetEnd, animate]);
+
+  return d;
+}
+
+/**
  * Layered pitch-contour graph. Pure/declarative visx (SVG) so the same
  * component renders live and serializes for export. X scrolls left once a take
  * runs past the window; committed layers overlay in the same window.
@@ -103,21 +153,24 @@ export function PitchGraph({
 
   const lastActive = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
 
-  // Fixed time-scale window that scrolls left once the take runs past it (no
-  // squishing). When finished (no active take), fit the whole session.
-  const [domainStart, domainEnd] = useMemo(() => {
-    // While recording keep a stable fixed window (even between takes, when the
-    // active take is momentarily empty) so the scale never flips to fit-all and
-    // jumps. Once the take runs past the window it scrolls left.
-    if (recording) {
+  // Target x-domain. While a take is actively recording, it's a fixed-width
+  // window that scrolls left once the take runs past it (no squishing).
+  // Otherwise — between takes (armed) or finished — the target fits the longest
+  // recorded wave to the full width, so after each loop the graph fills the
+  // whole width. The transition to that fit is eased below (soft zoom-out).
+  const live = recording && lastActive > 0;
+  const [targetStart, targetEnd] = useMemo(() => {
+    if (live) {
       const end = Math.max(windowMs, lastActive);
       return [end - windowMs, end];
     }
-    // Finished: fit the longest take to the full width so the art fills the screen.
     let max = 0;
     for (const l of committedLoops) max = Math.max(max, l.durationMs);
-    return [0, max > 0 ? max : windowMs];
-  }, [windowMs, committedLoops, lastActive, recording]);
+    const fallback = Number.isFinite(windowMs) ? windowMs : 3000;
+    return [0, max > 0 ? max : fallback];
+  }, [windowMs, committedLoops, lastActive, live]);
+
+  const [domainStart, domainEnd] = useEasedDomain(targetStart, targetEnd, !live);
 
   const xScale = useMemo(
     () => scaleLinear<number>({ domain: [domainStart, domainEnd], range: [0, innerW] }),
