@@ -86,11 +86,12 @@ export default function App() {
     : 0;
   const primaryLabel = fixed && !looper.armed ? 'Stop' : 'New Wave';
 
-  // In portrait, the recording action buttons move to a rotated vertical rail
-  // on the right of the graph (the graph itself stays horizontal). The
-  // sensitivity slider and hints stay in the flow below the graph.
-  const portrait = useMediaQuery('(orientation: portrait)');
-  const railControls = portrait && recording;
+  // In landscape, the recording action buttons move to a rotated vertical rail
+  // on the right of the graph (vertical space is scarce when the viewport is
+  // wide and short). In portrait they stay in the flow below the graph, along
+  // with the sensitivity slider and hints.
+  const landscape = useMediaQuery('(orientation: landscape)');
+  const railControls = landscape && recording;
 
   const range = useMemo(
     () => autoRange(committed, settings.octaves, activePoints),
