@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toSegments, freqExtent, type PitchPoint } from './contour';
+import { toSegments, freqExtent, voicedTimeExtent, type PitchPoint } from './contour';
 
 const P = (tMs: number, freq: number | null): PitchPoint => ({ tMs, freq, clarity: freq ? 0.95 : 0 });
 
@@ -37,5 +37,23 @@ describe('freqExtent', () => {
   });
   it('returns null when silent', () => {
     expect(freqExtent([P(0, null), P(1, null)])).toBeNull();
+  });
+});
+
+describe('voicedTimeExtent', () => {
+  it('trims leading and trailing silence to the voiced span', () => {
+    // Silence at 0–300ms and after 900ms; singing runs 300–900ms.
+    const loop = { points: [P(0, null), P(300, 220), P(600, 240), P(900, 230), P(1200, null)] };
+    expect(voicedTimeExtent([loop])).toEqual([300, 900]);
+  });
+
+  it('spans the earliest and latest voiced time across all layers', () => {
+    const a = { points: [P(200, 220), P(500, 220)] };
+    const b = { points: [P(100, 330), P(800, 330)] };
+    expect(voicedTimeExtent([a, b])).toEqual([100, 800]);
+  });
+
+  it('returns null when nothing is voiced', () => {
+    expect(voicedTimeExtent([{ points: [P(0, null), P(30, null)] }])).toBeNull();
   });
 });

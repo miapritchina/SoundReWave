@@ -4,7 +4,7 @@ import { scaleLinear, scaleLog } from '@visx/scale';
 import { LinePath } from '@visx/shape';
 import { curveCatmullRom } from '@visx/curve';
 import type { Loop, PitchPoint } from '../lib/contour';
-import { toSegments } from '../lib/contour';
+import { toSegments, voicedTimeExtent } from '../lib/contour';
 import { noteTicks, DEFAULT_FMIN, DEFAULT_FMAX } from '../lib/scales';
 import type { StyleMode } from '../lib/settings';
 
@@ -152,19 +152,23 @@ export function PitchGraph({
 
   // Target x-domain. While a take is actively recording, it's a fixed-width
   // window that scrolls left once the take runs past it (no squishing).
-  // Otherwise — between takes (armed) or finished — the target fits the longest
-  // recorded wave to the full width, so after each loop the graph fills the
-  // whole width. The transition to that fit is eased below (soft zoom-out).
+  // Otherwise — between takes (armed) or finished — the target fits the *voiced*
+  // span of the committed takes to the full width: it starts at the first note
+  // and ends at the last, trimming the silence at the start (and end) so the
+  // drawing fills the width instead of sitting behind dead air. This is
+  // recomputed whenever a layer commits (committedLoops changes), so the width
+  // re-fits on every layer finish. The transition is eased below (soft zoom).
   const live = recording && lastActive > 0;
   const [targetStart, targetEnd] = useMemo(() => {
     if (live) {
       const end = Math.max(windowMs, lastActive);
       return [end - windowMs, end];
     }
-    let max = 0;
-    for (const l of committedLoops) max = Math.max(max, l.durationMs);
     const fallback = Number.isFinite(windowMs) ? windowMs : 3000;
-    return [0, max > 0 ? max : fallback];
+    const bounds = voicedTimeExtent(committedLoops);
+    if (!bounds) return [0, fallback];
+    const [lo, hi] = bounds;
+    return hi > lo ? [lo, hi] : [lo, lo + fallback];
   }, [windowMs, committedLoops, lastActive, live]);
 
   const [domainStart, domainEnd] = useEasedDomain(targetStart, targetEnd, !live);
