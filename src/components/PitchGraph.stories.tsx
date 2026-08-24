@@ -65,10 +65,9 @@ export const Aurora: Story = {
 };
 
 export const AuroraFinished: Story = {
-  name: 'Aurora finished (overlap → white)',
+  name: 'Aurora stacked (overlap → white)',
   args: {
     style: 'aurora',
-    finished: true,
     committedLoops: Array.from({ length: 8 }, (_, i) =>
       demoLoop(i, [N('A3'), N('C4'), N('E4'), N('C4')], i),
     ),
@@ -76,10 +75,9 @@ export const AuroraFinished: Story = {
 };
 
 export const BloomFinished: Story = {
-  name: 'Bloom finished (overlap → white)',
+  name: 'Bloom stacked (overlap → white)',
   args: {
     style: 'bloom',
-    finished: true,
     committedLoops: Array.from({ length: 8 }, (_, i) =>
       demoLoop(i, [N('A3'), N('C4'), N('B3'), N('C4')], i),
     ),

@@ -27,12 +27,6 @@ export interface PitchGraphProps {
   playheadTMs?: number | null;
   /** Recording session: keep the fixed window even between takes (no fit-all). */
   recording?: boolean;
-  /**
-   * Session finished. Additive white accumulation now auto-exposes continuously
-   * to the committed-layer count (recomputed on every layer finish), so this
-   * flag no longer gates the white rebalance — kept for API compatibility.
-   */
-  finished?: boolean;
   padding?: { top: number; right: number; bottom: number; left: number };
 }
 
