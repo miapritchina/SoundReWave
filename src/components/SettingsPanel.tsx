@@ -33,6 +33,9 @@ function Segmented<T extends string | number>({ label, value, options, onChange 
 export interface SettingsPanelProps {
   settings: VisualSettings;
   onChange: (patch: Partial<VisualSettings>) => void;
+  /** Window length (whole seconds) auto-derived from the first wave, or null
+   * before one is recorded. Shown as the readout while Auto speed is on. */
+  autoWindowSec?: number | null;
   presets: Preset[];
   onApplyPreset: (name: string) => void;
   onSavePreset: (name: string) => void;
@@ -42,6 +45,7 @@ export interface SettingsPanelProps {
 export function SettingsPanel({
   settings,
   onChange,
+  autoWindowSec,
   presets,
   onApplyPreset,
   onSavePreset,
@@ -82,7 +86,18 @@ export function SettingsPanel({
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] text-white/55">Speed</span>
         <div className="flex flex-1 items-center gap-2">
-          {/* Reversed: drag right = faster = shorter window. */}
+          <button
+            onClick={() => onChange({ windowAuto: !settings.windowAuto })}
+            className={`rounded-md border px-2 py-1 text-[11px] ${
+              settings.windowAuto ? 'border-accent/60 bg-accent/15 text-accent' : 'border-white/15 text-white/55'
+            }`}
+            aria-pressed={settings.windowAuto}
+            aria-label="Auto speed from first wave"
+          >
+            Auto
+          </button>
+          {/* Reversed: drag right = faster = shorter window. Disabled while Auto
+              derives the window from the first wave. */}
           <input
             type="range"
             min={2}
@@ -90,12 +105,20 @@ export function SettingsPanel({
             step={1}
             value={20 - settings.windowSec}
             onChange={(e) => onChange({ windowSec: 20 - Number(e.target.value) })}
-            className="min-w-0 flex-1 accent-accent"
+            disabled={settings.windowAuto}
+            className="min-w-0 flex-1 accent-accent disabled:opacity-40"
             aria-label="Graph speed"
           />
-          <span className="w-9 text-right font-mono text-[11px] text-white/50">{settings.windowSec}s</span>
+          <span className="w-9 text-right font-mono text-[11px] text-white/50">
+            {settings.windowAuto ? (autoWindowSec != null ? `${autoWindowSec}s` : 'auto') : `${settings.windowSec}s`}
+          </span>
         </div>
       </div>
+      {settings.windowAuto && (
+        <p className="text-[10px] leading-snug text-white/40">
+          Speed follows your first wave’s length — later takes line up with it. The first take fills the width as you record.
+        </p>
+      )}
       <div className="border-t border-white/10 pt-2">
         <Segmented
           label="Loop"
