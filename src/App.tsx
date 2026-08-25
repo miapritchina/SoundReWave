@@ -260,7 +260,10 @@ export default function App() {
       {/* Controls */}
       {status === 'idle' || status === 'denied' || status === 'error' || status === 'requesting' ? (
         <button
-          onClick={() => void looper.start()}
+          onClick={() => {
+            setShowSettings(false);
+            void looper.start();
+          }}
           className="rounded-xl bg-glow py-4 font-display text-lg font-semibold text-white shadow-lg shadow-glow/30 active:scale-[0.98]"
         >
           {status === 'requesting' ? 'Starting…' : 'Start'}
