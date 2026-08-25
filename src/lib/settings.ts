@@ -9,6 +9,13 @@ export interface VisualSettings {
   octaves: number;
   /** Graph time window in seconds (smaller = fills/scrolls faster). */
   windowSec: number;
+  /**
+   * Auto speed: derive the graph window from the first recorded wave's length
+   * (so later takes line up with it) instead of the fixed `windowSec`. While
+   * the first wave is still being recorded the window grows to fit it, so the
+   * take fills the width instead of being squished by a too-long window.
+   */
+  windowAuto: boolean;
   /** Show a vertical playhead that tracks time. */
   playhead: boolean;
   /** 'manual' = New Layer ends/starts takes; 'fixed' = auto-stop after length. */
@@ -28,6 +35,7 @@ export const DEFAULT_SETTINGS: VisualSettings = {
   style: 'layers',
   octaves: 2,
   windowSec: 9,
+  windowAuto: true,
   playhead: false,
   loopMode: 'manual',
   loopLengthSec: 3,
@@ -37,13 +45,14 @@ export const DEFAULT_SETTINGS: VisualSettings = {
 };
 
 /** Visual-only keys — presets carry these; loop mode/sensitivity are separate. */
-export const VISUAL_KEYS = ['style', 'octaves', 'windowSec', 'playhead'] as const;
+export const VISUAL_KEYS = ['style', 'octaves', 'windowSec', 'windowAuto', 'playhead'] as const;
 
 export function visualSubset(s: VisualSettings): Partial<VisualSettings> {
   return {
     style: s.style,
     octaves: s.octaves,
     windowSec: s.windowSec,
+    windowAuto: s.windowAuto,
     playhead: s.playhead,
   };
 }

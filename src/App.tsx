@@ -77,10 +77,21 @@ export default function App() {
   const layerIdx = committed.length;
   const fixed = settings.loopMode === 'fixed';
   const fixedLenFinite = Number.isFinite(effectiveLoopMs);
-  const windowMs = fixed && fixedLenFinite ? effectiveLoopMs : settings.windowSec * 1000;
+  const lastActiveMs = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
+
+  // Auto speed: size the graph window from the first wave's length so later
+  // takes line up with it (instead of a fixed window that squishes short takes).
+  // Before the first wave is committed the window grows with the take in
+  // progress — fit-to-fill, so the first take isn't squished either. A small
+  // floor keeps the scale sane in the opening moment before any pitch.
+  const firstWaveMs = committed[0]?.durationMs ?? 0;
+  const autoWindowMs =
+    firstWaveMs > 0 ? Math.ceil(firstWaveMs / 1000) * 1000 : Math.max(2000, lastActiveMs);
+  const baseWindowMs = settings.windowAuto ? autoWindowMs : settings.windowSec * 1000;
+  const windowMs = fixed && fixedLenFinite ? effectiveLoopMs : baseWindowMs;
+  const autoWindowSec = firstWaveMs > 0 ? Math.ceil(firstWaveMs / 1000) : null;
   const effectiveLoopSec = fixedLenFinite ? Math.round(effectiveLoopMs / 1000) : null;
 
-  const lastActiveMs = activePoints.length ? activePoints[activePoints.length - 1].tMs : 0;
   const remainingSec = fixedLenFinite
     ? Math.max(0, Math.ceil((effectiveLoopMs - lastActiveMs) / 1000))
     : 0;
@@ -236,6 +247,7 @@ export default function App() {
         <SettingsPanel
           settings={settings}
           onChange={update}
+          autoWindowSec={autoWindowSec}
           presets={presets}
           onApplyPreset={applyPreset}
           onSavePreset={savePreset}
