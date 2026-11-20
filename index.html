@@ -11,7 +11,40 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap"
       rel="stylesheet"
     />
-  </head>
+  <!-- PostHog analytics for "soundrewave" (one PostHog project for all of Mia's sites; the `app` property tells them apart) -->
+<script>
+!function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+posthog.init('phc_Bym9u4MV2tLb6YmGStksWtW9Z2yCAYGeeUqKz86CJxxh', {
+  api_host: 'https://us.i.posthog.com',
+  ui_host: 'https://us.posthog.com',
+  defaults: '2026-08-30',
+  person_profiles: 'always',
+  capture_pageview: 'history_change',
+  capture_pageleave: true,
+  autocapture: true,
+  rageclick: true,
+  capture_dead_clicks: true,
+  enable_heatmaps: true,
+  capture_performance: { web_vitals: true, network_timing: true },
+  capture_exceptions: true,
+  enable_recording_console_log: true,
+  logs: { captureConsoleLogs: true },
+  session_recording: { maskAllInputs: false, recordHeaders: true, recordBody: true, recordCrossOriginIframes: true },
+  before_send: function (e) {
+    if (!e) return e;
+    e.properties = e.properties || {};
+    e.properties.app = 'soundrewave';
+    e.properties.display_mode = matchMedia('(display-mode: standalone)').matches ? 'installed' : 'browser';
+    e.properties.online = navigator.onLine;
+    return e;
+  },
+  loaded: function (ph) {
+    if (ph.get_distinct_id() !== 'mia') ph.identify('mia', { name: 'Mia' });
+  },
+});
+addEventListener('appinstalled', function () { posthog.capture('app_installed'); });
+</script>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
